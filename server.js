@@ -939,22 +939,102 @@ app.use('*', (req, res) => {
 // ============================================
 function getNotAuthorizedHTML() {
     return `<!DOCTYPE html>
-<html><head><title>Access Denied</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:linear-gradient(135deg,#0a0a0a,#1a1a2e);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;text-align:center}
-.container{padding:40px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.1);border-radius:20px;backdrop-filter:blur(10px)}
-h1{font-size:3rem;margin-bottom:15px;background:linear-gradient(135deg,#ff6b6b,#ffa500);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-p{color:#888;font-size:1.1rem}
-.code{font-family:monospace;color:#ff6b6b;font-size:0.9rem;margin-top:20px}
-</style>
-</head><body>
-<div class="container">
-<h1>⛔ Access Denied</h1>
-<p>This resource is not accessible from web browsers.</p>
-<p class="code">ERR_EXECUTOR_REQUIRED</p>
-</div>
-</body></html>`;
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Unauthorized | Premium Protect</title>
+    <style>
+        * {
+            margin: 0; padding: 0; box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100%; height: 100%; overflow: hidden;
+            background-color: #000000;
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: #ffffff;
+        }
+
+        /* Background gradasi gelap bergerak halus */
+        .bg-layer {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(270deg, #000000, #0f172a, #000000);
+            background-size: 600% 600%;
+            animation: gradientShift 30s ease infinite;
+            z-index: 1;
+        }
+
+        .container {
+            position: relative;
+            z-index: 10;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+            user-select: none;
+        }
+
+        .auth-label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #ffffff;
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 25px;
+        }
+
+        h1 {
+            color: #ffffff;
+            font-size: clamp(1.8rem, 5vw, 2.5rem);
+            font-weight: 800;
+            max-width: 700px;
+            margin: 0 0 20px 0;
+            line-height: 1.3;
+            background: linear-gradient(180deg, #ffffff 40%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 1.1rem;
+            margin: 0;
+        }
+
+        .icon {
+            font-size: 1.4rem;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-layer"></div>
+
+    <div class="container">
+        <div class="auth-label">
+            <span class="icon">⛔</span>
+            Not Authorized
+            <span class="icon">⛔</span>
+        </div>
+
+        <h1>You are not allowed to view these files.</h1>
+        <p>Close this page & proceed.</p>
+    </div>
+</body>
+</html>`;
 }
 
 // ============================================
