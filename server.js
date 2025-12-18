@@ -172,54 +172,42 @@ function hashKey(key) {
 const NOT_AUTHORIZED_HTML = `<!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Unauthorized | Premium Protect</title>
     <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #080a12;
-            font-family: 'Inter', -apple-system, sans-serif;
+        * {
+            margin: 0; padding: 0; box-sizing: border-box;
         }
 
-        /* Background Bergerak */
-        .background-animate {
-            position: absolute;
+        body, html {
+            width: 100%; height: 100%; overflow: hidden;
+            background-color: #000000;
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: #ffffff;
+        }
+
+        /* Background gradasi gelap bergerak halus */
+        .bg-layer {
+            position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(135deg, #080a12, #111827, #0f172a, #080a12);
-            background-size: 400% 400%;
-            animation: moveGradient 15s ease infinite;
+            background: linear-gradient(270deg, #000000, #0f172a, #000000);
+            background-size: 600% 600%;
+            animation: gradientShift 30s ease infinite;
             z-index: 1;
         }
 
-        @keyframes moveGradient {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-
-        /* Layer Partikel */
-        #particles-js {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 2;
-        }
-
-        /* Konten Utama */
         .container {
             position: relative;
             z-index: 10;
-            height: 100%;
+            height: 100vh;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             text-align: center;
             padding: 20px;
+            user-select: none;
         }
 
         .auth-label {
@@ -232,34 +220,39 @@ const NOT_AUTHORIZED_HTML = `<!DOCTYPE html>
             letter-spacing: 3px;
             text-transform: uppercase;
             margin-bottom: 25px;
-            opacity: 0.9;
         }
 
         h1 {
             color: #ffffff;
-            font-size: 2.5rem;
+            font-size: clamp(1.8rem, 5vw, 2.5rem);
             font-weight: 800;
-            max-width: 600px;
+            max-width: 700px;
             margin: 0 0 20px 0;
-            line-height: 1.2;
-            background: linear-gradient(180deg, #fff 30%, #94a3b8 100%);
+            line-height: 1.3;
+            background: linear-gradient(180deg, #ffffff 40%, #94a3b8 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         p {
-            color: rgba(255, 255, 255, 0.5);
+            color: rgba(255, 255, 255, 0.4);
             font-size: 1.1rem;
             margin: 0;
         }
 
-        .icon { font-size: 1.4rem; }
+        .icon {
+            font-size: 1.4rem;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
     </style>
 </head>
 <body>
-
-    <div class="background-animate"></div>
-    <canvas id="particleCanvas"></canvas>
+    <div class="bg-layer"></div>
 
     <div class="container">
         <div class="auth-label">
@@ -271,58 +264,6 @@ const NOT_AUTHORIZED_HTML = `<!DOCTYPE html>
         <h1>You are not allowed to view these files.</h1>
         <p>Close this page & proceed.</p>
     </div>
-
-    <script>
-        // Script Sederhana untuk Efek Partikel Melayang
-        const canvas = document.getElementById('particleCanvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
-        let particles = [];
-        class Particle {
-            constructor() {
-                this.x = Math.random() * canvas.width;
-                this.y = Math.random() * canvas.height;
-                this.size = Math.random() * 2 + 0.5;
-                this.speedX = Math.random() * 0.5 - 0.25;
-                this.speedY = Math.random() * 0.5 - 0.25;
-                this.opacity = Math.random() * 0.5;
-            }
-            update() {
-                this.x += this.speedX;
-                this.y += this.speedY;
-                if (this.x > canvas.width) this.x = 0;
-                if (this.x < 0) this.x = canvas.width;
-                if (this.y > canvas.height) this.y = 0;
-                if (this.y < 0) this.y = canvas.height;
-            }
-            draw() {
-                ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-
-        function init() {
-            for (let i = 0; i < 80; i++) { particles.push(new Particle()); }
-        }
-
-        function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            particles.forEach(p => { p.update(); p.draw(); });
-            requestAnimationFrame(animate);
-        }
-
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        });
-
-        init();
-        animate();
-    </script>
 </body>
 </html>`;
 
