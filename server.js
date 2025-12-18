@@ -11,7 +11,7 @@ const app = express();
 // ============================================
 const CONFIG = {
     // URL GitHub Raw untuk loader.lua (SETELAH DI-OBFUSCATE)
-    LOADER_URL: "https://raw.githubusercontent.com/trianaq765-cmd/ultimate-hub/main/loader.lua",
+    LOADER_URL: "https://raw.githubusercontent.com/trianaq765-cmd/lootlabs-keysystem-/refs/heads/main/Protected_2260249086296060.lua%20(1).txt",
     
     // Versi
     VERSION: "9.3",
