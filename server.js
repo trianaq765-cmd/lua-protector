@@ -174,100 +174,155 @@ const NOT_AUTHORIZED_HTML = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unauthorized Access</title>
+    <title>Unauthorized | Premium Protect</title>
     <style>
-        :root {
-            --text-main: #ffffff;
-            --text-dim: rgba(255, 255, 255, 0.6);
-        }
-
-        body {
+        body, html {
             margin: 0;
             padding: 0;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-family: 'Inter', -apple-system, sans-serif;
-            color: var(--text-main);
+            width: 100%;
+            height: 100%;
             overflow: hidden;
-            /* Background Bergerak Premium */
-            background: linear-gradient(125deg, #0d1117, #161b22, #0d1117, #1a1f2c);
-            background-size: 400% 400%;
-            animation: gradientBG 15s ease infinite;
+            background-color: #080a12;
+            font-family: 'Inter', -apple-system, sans-serif;
         }
 
-        @keyframes gradientBG {
+        /* Background Bergerak */
+        .background-animate {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #080a12, #111827, #0f172a, #080a12);
+            background-size: 400% 400%;
+            animation: moveGradient 15s ease infinite;
+            z-index: 1;
+        }
+
+        @keyframes moveGradient {
             0% { background-position: 0% 50%; }
             50% { background-position: 100% 50%; }
             100% { background-position: 0% 50%; }
         }
 
-        .content {
-            text-align: center;
+        /* Layer Partikel */
+        #particles-js {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 2;
+        }
+
+        /* Konten Utama */
+        .container {
+            position: relative;
             z-index: 10;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
             padding: 20px;
         }
 
-        .header-auth {
+        .auth-label {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 15px;
-            font-size: 1.2rem;
+            gap: 12px;
+            color: #ffffff;
+            font-size: 1.1rem;
             font-weight: 600;
-            letter-spacing: 2px;
+            letter-spacing: 3px;
             text-transform: uppercase;
-            margin-bottom: 20px;
-        }
-
-        .icon {
-            font-size: 1.5rem;
+            margin-bottom: 25px;
+            opacity: 0.9;
         }
 
         h1 {
+            color: #ffffff;
             font-size: 2.5rem;
             font-weight: 800;
-            margin: 0 0 15px 0;
-            letter-spacing: -1px;
-            /* Efek gradasi pada teks */
-            background: linear-gradient(180deg, #ffffff 0%, #aab 100%);
+            max-width: 600px;
+            margin: 0 0 20px 0;
+            line-height: 1.2;
+            background: linear-gradient(180deg, #fff 30%, #94a3b8 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         p {
+            color: rgba(255, 255, 255, 0.5);
             font-size: 1.1rem;
-            color: var(--text-dim);
             margin: 0;
-            font-weight: 400;
         }
 
-        /* Dekorasi tambahan untuk kesan premium */
-        .overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.4) 100%);
-            pointer-events: none;
-        }
+        .icon { font-size: 1.4rem; }
     </style>
 </head>
 <body>
 
-    <div class="overlay"></div>
+    <div class="background-animate"></div>
+    <canvas id="particleCanvas"></canvas>
 
-    <div class="content">
-        <div class="header-auth">
+    <div class="container">
+        <div class="auth-label">
             <span class="icon">⛔</span>
             Not Authorized
             <span class="icon">⛔</span>
         </div>
 
         <h1>You are not allowed to view these files.</h1>
-
         <p>Close this page & proceed.</p>
     </div>
 
+    <script>
+        // Script Sederhana untuk Efek Partikel Melayang
+        const canvas = document.getElementById('particleCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let particles = [];
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2 + 0.5;
+                this.speedX = Math.random() * 0.5 - 0.25;
+                this.speedY = Math.random() * 0.5 - 0.25;
+                this.opacity = Math.random() * 0.5;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                if (this.x > canvas.width) this.x = 0;
+                if (this.x < 0) this.x = canvas.width;
+                if (this.y > canvas.height) this.y = 0;
+                if (this.y < 0) this.y = canvas.height;
+            }
+            draw() {
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function init() {
+            for (let i = 0; i < 80; i++) { particles.push(new Particle()); }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        init();
+        animate();
+    </script>
 </body>
 </html>`;
 
