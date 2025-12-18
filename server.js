@@ -345,6 +345,7 @@ class Database {
     static get(key) { return this.data[key]; }
     static set(key, value) { this.data[key] = value; }
     static has(key) { return key in this.data; }
+    static delete(key) { delete this.data[key]; }
     static count() { return Object.keys(this.data).length; }
 }
 
@@ -687,7 +688,10 @@ scriptPaths.forEach(path => {
     });
 });
 
-// Validate Key
+// ============================================
+// 🔑 VALIDATE KEY - DIPERBAIKI
+// Masa aktif key mengikuti penyedia (Work.ink)
+// ============================================
 app.post('/api/validate', async (req, res) => {
     const ip = getRealIP(req);
     
@@ -703,7 +707,10 @@ app.post('/api/validate', async (req, res) => {
             return res.json({ valid: false, error: 'invalid_hwid', message: 'Invalid device identifier' });
         }
         
-        // Check with Work.ink
+        // ============================================
+        // 🔑 SELALU CEK KE WORK.INK TERLEBIH DAHULU
+        // Masa aktif key mengikuti penyedia (Work.ink)
+        // ============================================
         let isValidKey = false;
         try {
             const workinkRes = await axios.get(
@@ -713,11 +720,28 @@ app.post('/api/validate', async (req, res) => {
             isValidKey = workinkRes.data?.valid === true;
         } catch (e) {
             Logger.log('WORKINK_ERROR', { ip, error: e.message }, 'warning');
-            // Fallback: allow if Work.ink is down? (optional)
-            // isValidKey = true;
+            // Jika Work.ink tidak bisa dihubungi, tolak untuk keamanan
+            return res.json({ 
+                valid: false, 
+                error: 'validation_failed', 
+                message: 'Cannot verify key at this moment. Please try again later.' 
+            });
         }
         
+        // ============================================
+        // 🚫 KEY TIDAK VALID/EXPIRED DI WORK.INK
+        // Hapus dari database lokal jika ada
+        // ============================================
         if (!isValidKey) {
+            // Cek apakah key ada di database lokal
+            const existing = Database.get(key);
+            if (existing) {
+                // Hapus key yang sudah expired dari database lokal
+                Database.delete(key);
+                Database.save();
+                Logger.log('KEY_EXPIRED_REMOVED', { ip, key: key.slice(0, 8) + '...' }, 'info');
+            }
+            
             // Track failed attempts
             const attempts = (stores.failedAttempts.get(ip) || 0) + 1;
             stores.failedAttempts.set(ip, attempts);
@@ -740,6 +764,11 @@ app.post('/api/validate', async (req, res) => {
             });
         }
         
+        // ============================================
+        // ✅ KEY VALID DI WORK.INK
+        // Sekarang cek binding HWID di database lokal
+        // ============================================
+        
         // Reset failed attempts on success
         stores.failedAttempts.delete(ip);
         stores.warnings.delete(ip);
@@ -751,7 +780,9 @@ app.post('/api/validate', async (req, res) => {
         const existing = Database.get(key);
         
         if (existing) {
+            // Key sudah pernah di-bind
             if (existing.hwid !== hashedHWID) {
+                // Key di-bind ke device lain
                 Logger.log('KEY_BOUND_OTHER', { ip, key: key.slice(0, 8) + '...' }, 'info');
                 return res.json({
                     valid: false,
@@ -761,7 +792,7 @@ app.post('/api/validate', async (req, res) => {
                 });
             }
             
-            // Update last used
+            // HWID sama - update last used
             existing.lastUsed = Date.now();
             existing.useCount = (existing.useCount || 0) + 1;
             existing.lastIP = ip;
@@ -785,7 +816,10 @@ app.post('/api/validate', async (req, res) => {
             });
         }
         
-        // New binding
+        // ============================================
+        // 🆕 BINDING BARU
+        // Key valid dan belum pernah di-bind
+        // ============================================
         Database.set(key, {
             hwid: hashedHWID,
             userId: Validator.sanitize(String(userId || ''), 20),
@@ -988,6 +1022,11 @@ app.listen(PORT, () => {
 ║     • Rate limiting with warnings                             ║
 ║     • HWID hashing (SHA-512)                                  ║
 ║     • Session tokens                                          ║
+║                                                               ║
+║  🔑 Key System (FIXED):                                       ║
+║     • Key validity checked from Work.ink every request        ║
+║     • Expired keys auto-removed from local database           ║
+║     • Key expiration follows provider (Work.ink)              ║
 ║                                                               ║
 ║  ⚠️  Balanced Features (No aggressive blocking):              ║
 ║     • Warning before blocking                                 ║
