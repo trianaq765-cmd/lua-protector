@@ -11,7 +11,7 @@ const app = express();
 // ============================================
 const CONFIG = {
     // Script Source
-    LOADER_SCRIPT_URL: "https://raw.githubusercontent.com/trianaq765-cmd/ultimate-hub/refs/heads/main/Protected_8691028334350802.lua.txt",
+    LOADER_SCRIPT_URL: "https://raw.githubusercontent.com/trianaq765-cmd/lua-protector/refs/heads/main/Protected_8132419935440713.lua.txt",
     WORKINK_API: "https://work.ink/_api/v2/token/isValid/",
     
     // Files
