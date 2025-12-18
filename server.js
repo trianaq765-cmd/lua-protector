@@ -170,122 +170,102 @@ function hashKey(key) {
 // Width: 163.7mm, No shadow on ⛔ icon
 // ============================================
 const NOT_AUTHORIZED_HTML = `<!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Access Denied | Luarmor Premium</title>
+    <title>Unauthorized Access</title>
     <style>
         :root {
-            --bg-color: #0d1117;
-            --card-bg: #161b22;
             --text-main: #ffffff;
-            --text-dim: #8b949e;
-            --danger: #ff4d4d;
+            --text-dim: rgba(255, 255, 255, 0.6);
         }
 
         body {
             margin: 0;
             padding: 0;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: var(--text-main);
             overflow: hidden;
+            /* Background Bergerak Premium */
+            background: linear-gradient(125deg, #0d1117, #161b22, #0d1117, #1a1f2c);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
         }
 
-        /* Animasi Fade In */
-        .container {
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .content {
             text-align: center;
-            padding: 40px;
-            max-width: 500px;
-            animation: fadeIn 0.8s ease-out;
+            z-index: 10;
+            padding: 20px;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .auth-badge {
-            display: inline-flex;
+        .header-auth {
+            display: flex;
             align-items: center;
-            background: rgba(255, 77, 77, 0.1);
-            border: 1px solid rgba(255, 77, 77, 0.3);
-            padding: 8px 20px;
-            border-radius: 50px;
-            margin-bottom: 30px;
-            gap: 12px;
-            color: var(--danger);
+            justify-content: center;
+            gap: 15px;
+            font-size: 1.2rem;
             font-weight: 600;
-            letter-spacing: 1px;
+            letter-spacing: 2px;
             text-transform: uppercase;
-            font-size: 0.85rem;
+            margin-bottom: 20px;
         }
 
-        .icon-pulse {
-            width: 10px;
-            height: 10px;
-            background-color: var(--danger);
-            border-radius: 50%;
-            box-shadow: 0 0 10px var(--danger);
-            display: inline-block;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 77, 77, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 77, 77, 0); }
+        .icon {
+            font-size: 1.5rem;
         }
 
         h1 {
-            font-size: 2.2rem;
-            line-height: 1.3;
-            margin-bottom: 15px;
+            font-size: 2.5rem;
             font-weight: 800;
-            background: linear-gradient(180deg, #fff 0%, #aab 100%);
+            margin: 0 0 15px 0;
+            letter-spacing: -1px;
+            /* Efek gradasi pada teks */
+            background: linear-gradient(180deg, #ffffff 0%, #aab 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         p {
-            color: var(--text-dim);
             font-size: 1.1rem;
-            line-height: 1.6;
-            margin-bottom: 40px;
+            color: var(--text-dim);
+            margin: 0;
+            font-weight: 400;
         }
 
-        .status-box {
-            background: var(--card-bg);
-            border: 1px solid #30363d;
-            padding: 15px;
-            border-radius: 12px;
-            font-family: monospace;
-            font-size: 0.9rem;
-            color: #ff7b72;
-            display: inline-block;
+        /* Dekorasi tambahan untuk kesan premium */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.4) 100%);
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <div class="auth-badge">
-            <span class="icon-pulse"></span>
+    <div class="overlay"></div>
+
+    <div class="content">
+        <div class="header-auth">
+            <span class="icon">⛔</span>
             Not Authorized
-            <span class="icon-pulse"></span>
+            <span class="icon">⛔</span>
         </div>
 
-        <h1>Access Restricted</h1>
-        <p>Your security token is invalid or has expired. You are not allowed to view these files.</p>
-        
-        <div class="status-box">
-            ERR_LUARMOR_UNAUTHORIZED_V4
-        </div>
+        <h1>You are not allowed to view these files.</h1>
+
+        <p>Close this page & proceed.</p>
     </div>
 
 </body>
