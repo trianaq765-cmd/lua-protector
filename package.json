@@ -1,7 +1,6 @@
 {
-  "name": "lua-protector",
-  "version": "1.0.0",
-  "description": "Protected Key System for Ultimate Hub",
+  "name": "ultimate-hub-server",
+  "version": "9.3.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
