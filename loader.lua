@@ -11,7 +11,7 @@ local CFG = {
     SERVER = "https://lua-protector-production.up.railway.app",
     
     -- URL GitHub Raw untuk core.lua (SETELAH DI-OBFUSCATE)
-    CORE_URL = "https://raw.githubusercontent.com/trianaq765-cmd/ultimate-hub/main/core.lua",
+    CORE_URL = "https://raw.githubusercontent.com/trianaq765-cmd/lootlabs-keysystem-/refs/heads/main/Protected_2260249086296060.lua%20(1).txt",
     
     -- URL Get Key (Work.ink)
     GET_KEY = "https://work.ink/29pu/key-sistem-3",
