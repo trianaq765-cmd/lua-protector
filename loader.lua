@@ -1,32 +1,8 @@
 --[[
-    Ultimate Hub V9.3 - Loader & Key System
-    OBFUSCATE FILE INI SEBELUM UPLOAD KE GITHUB!
+    Ultimate Hub V9.3 - Loader
+    Upload file ini ke: github.com/trianaq765-cmd/ultimate-hub/blob/main/loader.lua
 ]]
 
--- ============================================
--- ⚠️ GANTI URL INI SESUAI MILIKMU!
--- ============================================
-local CFG = {
-    -- URL Server Railway/Render kamu
-    SERVER = "https://lua-protector-production.up.railway.app",
-    
-    -- URL GitHub Raw untuk core.lua (SETELAH DI-OBFUSCATE)
-    CORE_URL = "https://raw.githubusercontent.com/trianaq765-cmd/lootlabs-keysystem-/refs/heads/main/Protected_2260249086296060.lua%20(1).txt",
-    
-    -- URL Get Key (Work.ink)
-    GET_KEY = "https://work.ink/29pu/key-sistem-3",
-    
-    -- Settings
-    SAVE_KEY = true,
-    KEY_FILE = "UltimateHubKey.txt",
-    USER_FILE = "UltimateHubUser.txt",
-    MAX_ATTEMPTS = 5,
-    COOLDOWN = 60,
-    ONE_KEY_ONE_USER = true,
-    VERSION = "9.3"
-}
-
--- Anti-duplicate
 if getgenv().UHLoaded then
     pcall(function() getgenv().UH:Destroy() end)
     pcall(function() game:GetService("CoreGui"):FindFirstChild("UltimateHubKeySystem"):Destroy() end)
@@ -35,6 +11,20 @@ if getgenv().UHLoaded then
     task.wait(0.3)
 end
 getgenv().UHLoaded = true
+
+-- ============================================
+-- ⚠️ KONFIGURASI - SESUAIKAN!
+-- ============================================
+local CFG = {
+    SERVER = "https://lua-protector-production.up.railway.app",
+    GET_KEY = "https://work.ink/29pu/key-sistem-3",
+    SAVE_KEY = true,
+    KEY_FILE = "UltimateHubKey.txt",
+    USER_FILE = "UltimateHubUser.txt",
+    MAX_ATTEMPTS = 5,
+    COOLDOWN = 60,
+    VERSION = "9.3"
+}
 
 -- Services
 local HttpService = game:GetService("HttpService")
@@ -48,7 +38,9 @@ local LocalPlayer = Players.LocalPlayer
 local attempts = 0
 local lastAttemptTime = 0
 
--- File Functions
+-- ============================================
+-- UTILITY FUNCTIONS
+-- ============================================
 local function saveFile(name, content)
     if writefile then pcall(writefile, name, content) end
 end
@@ -74,7 +66,6 @@ local function setClipboard(text)
     if setclipboard then pcall(setclipboard, text) end
 end
 
--- Get HWID
 local function getHWID()
     local hwid
     local funcs = {
@@ -83,10 +74,8 @@ local function getHWID()
         function() return syn and syn.cache_hwid and syn.cache_hwid() end,
         function() return fluxus and fluxus.get_hwid and fluxus.get_hwid() end,
         function() return get_hwid and get_hwid() end,
-        function() return HWID and HWID() end,
-        function() return getexecutorname and getexecutorname() .. "_" .. LocalPlayer.UserId end
+        function() return HWID and HWID() end
     }
-    
     for _, f in ipairs(funcs) do
         local s, r = pcall(f)
         if s and r and r ~= "" then
@@ -94,15 +83,12 @@ local function getHWID()
             break
         end
     end
-    
     if hwid then
         return hwid .. "_" .. LocalPlayer.UserId
-    else
-        return "NOHWID_" .. LocalPlayer.UserId .. "_" .. LocalPlayer.Name
     end
+    return "NOHWID_" .. LocalPlayer.UserId .. "_" .. LocalPlayer.Name
 end
 
--- HTTP Request
 local function doRequest(url, method, headers, body)
     headers = headers or {}
     headers["UH-Executor"] = "true"
@@ -113,12 +99,7 @@ local function doRequest(url, method, headers, body)
     
     if requestFunc then
         local s, r = pcall(function()
-            return requestFunc({
-                Url = url,
-                Method = method or "GET",
-                Headers = headers,
-                Body = body
-            })
+            return requestFunc({Url = url, Method = method or "GET", Headers = headers, Body = body})
         end)
         if s and r then return r end
     end
@@ -127,61 +108,44 @@ local function doRequest(url, method, headers, body)
         local s, r = pcall(function() return game:HttpGet(url) end)
         if s then return {Body = r, StatusCode = 200} end
     end
-    
     return nil
 end
 
--- Notification
 local function notify(title, text, duration)
     pcall(function()
-        StarterGui:SetCore("SendNotification", {
-            Title = title or "Ultimate Hub",
-            Text = text or "",
-            Duration = duration or 5
-        })
+        StarterGui:SetCore("SendNotification", {Title = title or "Ultimate Hub", Text = text or "", Duration = duration or 5})
     end)
 end
 
--- Open URL
 local function openURL(url)
     if not url or url == "" then return false end
-    local funcs = {"openurl", "OpenURL", "open_url", "browseurl", "BrowseURL", "browse_url"}
+    local funcs = {"openurl", "OpenURL", "open_url", "browseurl", "BrowseURL"}
     for _, n in ipairs(funcs) do
-        local f = getgenv()[n] or getfenv()[n] or _G[n]
+        local f = getgenv()[n] or _G[n]
         if f and type(f) == "function" and pcall(f, url) then return true end
     end
     pcall(function() if syn and syn.open_browser then syn.open_browser(url) end end)
-    pcall(function() if fluxus and fluxus.open_browser then fluxus.open_browser(url) end end)
     return false
 end
 
--- Key Cache
+-- ============================================
+-- KEY VALIDATION
+-- ============================================
 local keyCache = {}
 
--- ============================================
--- 🔑 VALIDATE KEY - PANGGIL SERVER API
--- ============================================
 local function validateKey(key)
-    if not key or key == "" then
-        return false, "Please enter a key!"
-    end
-    
+    if not key or key == "" then return false, "Please enter a key!" end
     key = key:gsub("^%s*(.-)%s*$", "%1")
+    if #key < 5 then return false, "Key too short!" end
     
-    if #key < 5 then
-        return false, "Key too short!"
-    end
-    
-    -- Check cache (5 menit)
+    -- Cache check
     if keyCache[key] and (os.time() - keyCache[key].time) < 300 then
         return keyCache[key].valid, keyCache[key].msg
     end
     
     local hwid = getHWID()
     
-    -- ============================================
-    -- 🚀 REQUEST KE SERVER /api/validate
-    -- ============================================
+    -- Request to server
     local success, result = pcall(function()
         local response = doRequest(CFG.SERVER .. "/api/validate", "POST", {
             ["Content-Type"] = "application/json"
@@ -191,7 +155,6 @@ local function validateKey(key)
             userId = LocalPlayer.UserId,
             userName = LocalPlayer.Name
         }))
-        
         if response and response.Body then
             return HttpService:JSONDecode(response.Body)
         end
@@ -200,53 +163,30 @@ local function validateKey(key)
     
     if success and result then
         if result.valid == true or result.success == true then
-            -- Key bound to other user
             if result.bound_to_other then
                 local boundName = result.bound_user or "Unknown"
                 keyCache[key] = {valid = false, msg = "Key bound to: " .. boundName, time = os.time()}
                 return false, "Key bound to: " .. boundName
             end
-            
-            -- Success
             local msg = result.message or "Key Valid!"
-            if result.new_binding then 
-                msg = "Key Registered!"
-            elseif result.returning_user then 
-                msg = "Welcome back!" 
-            end
-            
+            if result.new_binding then msg = "Key Registered!"
+            elseif result.returning_user then msg = "Welcome back!" end
             keyCache[key] = {valid = true, msg = msg, time = os.time()}
             return true, msg
         else
-            -- Invalid
             local errMsg = result.message or "Invalid key!"
             keyCache[key] = {valid = false, msg = errMsg, time = os.time()}
             return false, errMsg
         end
     end
     
-    -- ============================================
-    -- FALLBACK: Direct ke Work.ink jika server error
-    -- ============================================
+    -- Fallback to Work.ink
     local fallbackValid = false
     success, result = pcall(function()
         return HttpService:JSONDecode(game:HttpGet("https://work.ink/_api/v2/token/isValid/" .. key))
     end)
-    
     if success and result and result.valid == true then
         fallbackValid = true
-        
-        -- Try to bind via server
-        pcall(function()
-            doRequest(CFG.SERVER .. "/api/bind", "POST", {
-                ["Content-Type"] = "application/json"
-            }, HttpService:JSONEncode({
-                key = key,
-                hwid = hwid,
-                userId = LocalPlayer.UserId,
-                userName = LocalPlayer.Name
-            }))
-        end)
     end
     
     if fallbackValid then
@@ -259,16 +199,14 @@ local function validateKey(key)
 end
 
 -- ============================================
--- 🖼️ CREATE KEY SYSTEM UI
+-- KEY SYSTEM UI
 -- ============================================
 local function createKeySystem()
-    -- Cleanup
     pcall(function() if getgenv().UH then getgenv().UH:Destroy() end end)
     pcall(function()
         local k = CoreGui:FindFirstChild("UltimateHubKeySystem")
         if k then k:Destroy() end
     end)
-    getgenv().UH = nil
     task.wait(0.1)
     
     -- Check saved key
@@ -276,9 +214,8 @@ local function createKeySystem()
         local savedKey = readFile(CFG.KEY_FILE)
         local savedUser = readFile(CFG.USER_FILE)
         local currentUser = getHWID()
-        
         if savedKey and savedKey ~= "" then
-            if CFG.ONE_KEY_ONE_USER and savedUser and savedUser ~= currentUser then
+            if savedUser and savedUser ~= currentUser then
                 deleteFile(CFG.KEY_FILE)
                 deleteFile(CFG.USER_FILE)
                 notify("Ultimate Hub", "Key reset: Different device", 3)
@@ -301,13 +238,11 @@ local function createKeySystem()
     ScreenGui.Name = "UltimateHubKeySystem"
     ScreenGui.ResetOnSpawn = false
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    
     pcall(function() ScreenGui.Parent = CoreGui end)
     if not ScreenGui.Parent then
         pcall(function() ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end)
     end
     
-    -- Background
     local Background = Instance.new("Frame")
     Background.Size = UDim2.new(1, 0, 1, 0)
     Background.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -315,7 +250,6 @@ local function createKeySystem()
     Background.BorderSizePixel = 0
     Background.Parent = ScreenGui
     
-    -- Main Frame
     local MainFrame = Instance.new("Frame")
     MainFrame.Size = UDim2.new(0, 360, 0, 220)
     MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
@@ -323,7 +257,6 @@ local function createKeySystem()
     MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
     MainFrame.Parent = ScreenGui
-    
     Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
     local MainStroke = Instance.new("UIStroke", MainFrame)
     MainStroke.Color = Color3.fromRGB(100, 100, 255)
@@ -366,7 +299,6 @@ local function createKeySystem()
     StatusLabel.TextXAlignment = Enum.TextXAlignment.Center
     StatusLabel.Parent = TitleBar
     
-    -- User Info
     local UserInfo = Instance.new("TextLabel")
     UserInfo.Size = UDim2.new(1, 0, 0, 15)
     UserInfo.Position = UDim2.new(0, 0, 0, 50)
@@ -402,7 +334,6 @@ local function createKeySystem()
     KeyInput.ClearTextOnFocus = false
     KeyInput.Parent = InputContainer
     
-    -- Status
     local StatusText = Instance.new("TextLabel")
     StatusText.Size = UDim2.new(1, -40, 0, 25)
     StatusText.Position = UDim2.new(0, 20, 0, 115)
@@ -415,7 +346,7 @@ local function createKeySystem()
     StatusText.TextWrapped = true
     StatusText.Parent = MainFrame
     
-    -- Submit Button
+    -- Buttons
     local SubmitButton = Instance.new("TextButton")
     SubmitButton.Size = UDim2.new(0, 155, 0, 36)
     SubmitButton.Position = UDim2.new(0.5, -160, 0, 145)
@@ -428,7 +359,6 @@ local function createKeySystem()
     SubmitButton.Parent = MainFrame
     Instance.new("UICorner", SubmitButton).CornerRadius = UDim.new(0, 8)
     
-    -- Get Key Button
     local GetKeyButton = Instance.new("TextButton")
     GetKeyButton.Size = UDim2.new(0, 155, 0, 36)
     GetKeyButton.Position = UDim2.new(0.5, 5, 0, 145)
@@ -488,7 +418,6 @@ local function createKeySystem()
     local function submitKey()
         if isProcessing then return end
         isProcessing = true
-        
         local inputKey = KeyInput.Text:gsub("^%s*(.-)%s*$", "%1")
         
         if inputKey == "" then
@@ -524,12 +453,10 @@ local function createKeySystem()
                 StatusText.TextColor3 = Color3.fromRGB(100, 255, 100)
                 SubmitButton.Text = "✓ Success!"
                 SubmitButton.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
-                
                 if CFG.SAVE_KEY then
                     saveFile(CFG.KEY_FILE, inputKey)
                     saveFile(CFG.USER_FILE, getHWID())
                 end
-                
                 task.wait(1.2)
                 closeGUI()
                 keyValid = true
@@ -537,25 +464,22 @@ local function createKeySystem()
             else
                 attempts = attempts + 1
                 lastAttemptTime = os.time()
-                
                 StatusText.Text = "❌ " .. message
                 StatusText.TextColor3 = Color3.fromRGB(255, 100, 100)
                 SubmitButton.Text = "✓ Validate Key"
                 SubmitButton.BackgroundColor3 = Color3.fromRGB(80, 120, 255)
                 AttemptsLabel.Text = "Attempts: " .. attempts .. "/" .. CFG.MAX_ATTEMPTS
                 
-                -- Shake
+                -- Shake animation
                 local originalPos = InputContainer.Position
                 for i = 1, 4 do
                     InputContainer.Position = originalPos + UDim2.new(0, i % 2 == 0 and 6 or -6, 0, 0)
                     task.wait(0.04)
                 end
                 InputContainer.Position = originalPos
-                
                 InputStroke.Color = Color3.fromRGB(255, 80, 80)
                 task.wait(0.5)
                 InputStroke.Color = Color3.fromRGB(60, 60, 80)
-                
                 isProcessing = false
             end
         end)
@@ -596,20 +520,17 @@ local function createKeySystem()
 end
 
 -- ============================================
--- 🚀 LOAD CORE SCRIPT
+-- LOAD CORE
 -- ============================================
 local function loadCore()
-    notify("Ultimate Hub", "Loading core script...", 2)
-    
+    notify("Ultimate Hub", "Loading core...", 2)
     local success, err = pcall(function()
-        loadstring(game:HttpGet(CFG.CORE_URL))()
+        loadstring(game:HttpGet(CFG.SERVER .. "/core"))()
     end)
-    
     if not success then
-        notify("Ultimate Hub", "Failed to load: " .. tostring(err), 5)
+        notify("Ultimate Hub", "Load failed: " .. tostring(err), 5)
         return false
     end
-    
     return true
 end
 
