@@ -1,0 +1,6 @@
+secrets.json
+database.json
+backups/
+*.log
+node_modules/
+.DS_Store
