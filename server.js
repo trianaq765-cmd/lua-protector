@@ -363,7 +363,8 @@ const scriptCache = {
 // ============================================
 const AntiDump = {
     generateProtection(checksum) {
-        return `--[[ Ultimate Hub v3.0 | ${checksum} ]]\n`;
+        // Header sederhana tanpa protection yang blokir executor
+        return `--[[ Ultimate Hub v3.0 | Checksum: ${checksum} ]]\n`;
     },
     
     wrapScript(originalScript, checksum) {
@@ -371,20 +372,6 @@ const AntiDump = {
         return header + originalScript;
     }
 };
-
--- ============================================
--- 🚨 PROTECTION CHECK
--- ============================================
-local __detected__, __reason__ = __PROTECT__()
-
-if __detected__ then
-    -- Freeze executor (infinite loop)
-    warn("[PROTECTION] Unauthorized tool detected: " .. __reason__)
-    while true do
-        wait(9e9)
-    end
-    return
-end
 
 -- ============================================
 -- 🔐 CHECKSUM VERIFICATION
