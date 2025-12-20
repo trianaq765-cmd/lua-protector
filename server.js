@@ -359,143 +359,20 @@ const scriptCache = {
 };
 
 // ============================================
-// 🛡️ ANTI-DUMP WRAPPER (BARU - EXTREME!)
+// 🛡️ SCRIPT WRAPPER (SIMPLIFIED - NO ANTI-DUMP)
 // ============================================
 const AntiDump = {
-    // Detection code yang akan di-inject ke script
+    // Versi simple tanpa anti-dump yang trigger executor
     generateProtection(checksum) {
-        // Encode dalam format yang sulit dibaca
-        const protectionCode = `
---[[
-    Ultimate Protection v3.0
-    Checksum: ${checksum}
-]]
-
-local _ENV = _ENV or getfenv()
-local _G = _G
-
--- ============================================
--- 🔒 ANTI-DUMP PROTECTION
--- ============================================
-local function __PROTECT__()
-    local detected = false
-    local reason = ""
+        // Hanya header comment, tidak ada protection code
+        return `--[[ Ultimate Hub v3.0 | ${checksum} ]]\n`;
+    },
     
-    -- 1. Detect SimpleSpy
-    if _G.SimpleSpy or _G.SimpleSpyExecuted then
-        detected = true
-        reason = "SimpleSpy"
-    end
-    
-    -- 2. Detect Hydroxide
-    if _G.Hydroxide or _G.oh then
-        detected = true
-        reason = "Hydroxide"
-    end
-    
-    -- 3. Detect Dex Explorer
-    if _G.Dex or _G.DexExplorer then
-        detected = true
-        reason = "Dex"
-    end
-    
-    -- 4. Detect Remote Spy
-    if _G.RemoteSpy or _G.remoteSpy then
-        detected = true
-        reason = "RemoteSpy"
-    end
-    
-    -- 5. Detect Script Dumper
-    if _G.ScriptDumper or _G.Dumper then
-        detected = true
-        reason = "Dumper"
-    end
-    
-    -- 6. Detect Infinite Yield
-    if _G.IY_LOADED or _G.InfiniteYield then
-        detected = true
-        reason = "InfiniteYield"
-    end
-    
-    -- 7. Detect Dark Dex
-    if _G.DarkDex then
-        detected = true
-        reason = "DarkDex"
-    end
-    
-    -- 8. Detect Synapse Decompiler
-    if syn and syn.decompile then
-        local success = pcall(function()
-            syn.decompile(function() end)
-        end)
-        if success then
-            detected = true
-            reason = "Decompiler"
-        end
-    end
-    
-    -- 9. Detect getgc manipulation
-    if getgc then
-        local gc = getgc(true)
-        for _, v in pairs(gc) do
-            if type(v) == "function" then
-                local info = debug.getinfo(v)
-                if info and info.name then
-                    local name = info.name:lower()
-                    if name:find("spy") or name:find("dump") or name:find("log") then
-                        detected = true
-                        reason = "GC_Spy"
-                        break
-                    end
-                end
-            end
-        end
-    end
-    
-    -- 10. Detect hookfunction
-    if hookfunction or replaceclosure then
-        local oldLoadstring = loadstring
-        if rawequal(loadstring, oldLoadstring) == false then
-            detected = true
-            reason = "HookedLoadstring"
-        end
-    end
-    
-    -- 11. Detect debug library abuse
-    if debug and debug.getinfo then
-        local info = debug.getinfo(1)
-        if info.source and info.source:find("@") == 1 then
-            -- Possible external debugging
-        end
-    end
-    
-    -- 12. Detect getconstants abuse
-    if getconstants or debug.getconstants then
-        -- Someone might be trying to read script constants
-    end
-    
-    -- 13. Detect getupvalues abuse  
-    if getupvalues or debug.getupvalues then
-        -- Someone might be trying to read upvalues
-    end
-    
-    -- 14. Detect suspicious environment
-    local env = getfenv(0)
-    if env ~= _G then
-        detected = true
-        reason = "ModifiedEnvironment"
-    end
-    
-    -- 15. Detect print/warn hooking (script loggers)
-    local oldPrint = print
-    local oldWarn = warn
-    if type(oldPrint) ~= "function" or type(oldWarn) ~= "function" then
-        detected = true
-        reason = "HookedOutput"
-    end
-    
-    return detected, reason
-end
+    wrapScript(originalScript, checksum) {
+        const header = this.generateProtection(checksum);
+        return header + originalScript;
+    }
+};
 
 -- ============================================
 -- 🚨 PROTECTION CHECK
