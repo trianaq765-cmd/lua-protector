@@ -362,9 +362,7 @@ const scriptCache = {
 // 🛡️ SCRIPT WRAPPER (SIMPLIFIED - NO ANTI-DUMP)
 // ============================================
 const AntiDump = {
-    // Versi simple tanpa anti-dump yang trigger executor
     generateProtection(checksum) {
-        // Hanya header comment, tidak ada protection code
         return `--[[ Ultimate Hub v3.0 | ${checksum} ]]\n`;
     },
     
