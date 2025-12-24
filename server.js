@@ -21,7 +21,7 @@ const app = express();
 // 🔧 CONFIGURATION
 // ============================================
 const CONFIG = {
-    LOADER_SCRIPT_URL: "https://raw.githubusercontent.com/trianaq765-cmd/lua-protector/refs/heads/main/Protected_8132419935440713.lua.txt",
+    LOADER_SCRIPT_URL: "https://raw.githubusercontent.com/trianaq765-cmd/lua-protector/refs/heads/main/output-MLAYjqu.lua%20(1).txt",
     WORKINK_API: "https://work.ink/_api/v2/token/isValid/",
     
     DB_FILE: './database.json',
