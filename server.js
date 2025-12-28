@@ -21,7 +21,7 @@ const app = express();
 // 🔧 CONFIGURATION
 // ============================================
 const CONFIG = {
-    LOADER_SCRIPT_URL: "https://pastebin.com/raw/WLqQXQUY",
+    LOADER_SCRIPT_URL: "https://pastebin.com/raw/u4kzwdEX",
     WORKINK_API: "https://work.ink/_api/v2/token/isValid/",
     
     DB_FILE: './database.json',
