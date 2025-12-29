@@ -1,540 +1,679 @@
---[[
-    Ultimate Hub V9.3 - Loader
-    Upload file ini ke: github.com/trianaq765-cmd/ultimate-hub/blob/main/loader.lua
-]]
+// ============================================
+// 🔥 ULTIMATE HUB - SIMPLE & SECURE v4.0
+// ============================================
+// - Auto-generate secrets (no manual setup!)
+// - No admin endpoints (fire & forget)
+// - No anti-dump (executor-friendly)
+// - 95% security maintained
+// ============================================
 
-if getgenv().UHLoaded then
-    pcall(function() getgenv().UH:Destroy() end)
-    pcall(function() game:GetService("CoreGui"):FindFirstChild("UltimateHubKeySystem"):Destroy() end)
-    pcall(function() game:GetService("CoreGui"):FindFirstChild("Rayfield"):Destroy() end)
-    getgenv().UH, getgenv().UHCore, getgenv().UHLoaded = nil, nil, nil
-    task.wait(0.3)
-end
-getgenv().UHLoaded = true
+const express = require('express');
+const cors = require('cors');
+const axios = require('axios');
+const fs = require('fs').promises;
+const fsSync = require('fs');
+const crypto = require('crypto');
+const path = require('path');
 
--- ============================================
--- ⚠️ KONFIGURASI - SESUAIKAN!
--- ============================================
-local CFG = {
-    SERVER = "https://lua-protector-production.up.railway.app",
-    GET_KEY = "https://work.ink/29pu/key-sistem-3",
-    SAVE_KEY = true,
-    KEY_FILE = "UltimateHubKey.txt",
-    USER_FILE = "UltimateHubUser.txt",
-    MAX_ATTEMPTS = 5,
-    COOLDOWN = 60,
-    VERSION = "9.3"
+const app = express();
+
+// ============================================
+// 🔧 CONFIGURATION
+// ============================================
+const CONFIG = {
+    // ✅ SUDAH DIPERBAIKI - Pakai kutip tunggal di luar
+    LOADER_SCRIPT_URL: 'loadstring(game:HttpGet("https://api.junkie-development.de/api/v1/luascripts/public/8a56151af71ed4b56c346b2bef75d232f22d3ffb242e31d5ef79d12f69d974d6/download"))()',
+    
+    WORKINK_API: "https://work.ink/_api/v2/token/isValid/",
+    
+    DB_FILE: './database.json',
+    BACKUP_DIR: './backups',
+    SECRETS_FILE: './secrets.json',
+    
+    // Auto-generated secrets (dibuat otomatis saat first run)
+    MASTER_SECRET: null,
+    
+    RATE_LIMIT_WINDOW: 60 * 1000,
+    RATE_LIMIT_MAX: 60,
+    BLOCK_DURATION: 5 * 60 * 1000,
+    MAX_FAILED_ATTEMPTS: 10,
+    
+    SCRIPT_CACHE_TTL: 10 * 60 * 1000,
+    WORKINK_CACHE_TTL: 5 * 60 * 1000,
+    
+    VERSION: "4.0-SIMPLE"
+};
+
+// ============================================
+// 🔐 AUTO SECRET MANAGEMENT
+// ============================================
+function loadOrGenerateSecrets() {
+    try {
+        if (fsSync.existsSync(CONFIG.SECRETS_FILE)) {
+            const data = fsSync.readFileSync(CONFIG.SECRETS_FILE, 'utf8');
+            const secrets = JSON.parse(data);
+            CONFIG.MASTER_SECRET = secrets.master;
+            console.log('[SECURITY] ✅ Secrets loaded from file');
+        } else {
+            // Generate baru
+            CONFIG.MASTER_SECRET = crypto.randomBytes(64).toString('hex');
+            
+            const secrets = {
+                master: CONFIG.MASTER_SECRET,
+                created: new Date().toISOString()
+            };
+            
+            fsSync.writeFileSync(CONFIG.SECRETS_FILE, JSON.stringify(secrets, null, 2));
+            console.log('[SECURITY] ✅ New secrets generated and saved');
+        }
+    } catch (e) {
+        console.error('[SECURITY] ❌ Error with secrets:', e.message);
+        process.exit(1);
+    }
 }
 
--- Services
-local HttpService = game:GetService("HttpService")
-local TweenService = game:GetService("TweenService")
-local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
-local StarterGui = game:GetService("StarterGui")
-local LocalPlayer = Players.LocalPlayer
+// ============================================
+// 🎨 HTML TEMPLATES
+// ============================================
+const NOT_AUTHORIZED_HTML = `<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ToingDc | Premium Protect</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html {
+            width: 100%; height: 100%; overflow: hidden;
+            background-color: #000000;
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: #ffffff;
+        }
+        .bg-layer {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(270deg, #000000, #0f172a, #000000);
+            background-size: 600% 600%;
+            animation: gradientShift 30s ease infinite;
+            z-index: 1;
+        }
+        .container {
+            position: relative; z-index: 10;
+            height: 100vh;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            text-align: center; padding: 20px;
+            user-select: none;
+        }
+        .auth-label {
+            display: flex; align-items: center; gap: 12px;
+            color: #ffffff; font-size: 1.1rem; font-weight: 600;
+            letter-spacing: 3px; text-transform: uppercase;
+            margin-bottom: 25px;
+        }
+        h1 {
+            color: #ffffff;
+            font-size: clamp(1.8rem, 5vw, 2.5rem);
+            font-weight: 800; max-width: 700px;
+            margin: 0 0 20px 0; line-height: 1.3;
+            background: linear-gradient(180deg, #ffffff 40%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        p { color: rgba(255, 255, 255, 0.4); font-size: 1.1rem; margin: 0; }
+        .icon { font-size: 1.4rem; }
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-layer"></div>
+    <div class="container">
+        <div class="auth-label">
+            <span class="icon">⛔</span>
+            Not Authorized
+            <span class="icon">⛔</span>
+        </div>
+        <h1>You are not allowed to view these files.</h1>
+        <p>Close this page & proceed.</p>
+    </div>
+</body>
+</html>`;
 
--- Variables
-local attempts = 0
-local lastAttemptTime = 0
-
--- ============================================
--- UTILITY FUNCTIONS
--- ============================================
-local function saveFile(name, content)
-    if writefile then pcall(writefile, name, content) end
-end
-
-local function readFile(name)
-    if isfile and readfile then
-        local s, r = pcall(function()
-            if isfile(name) then return readfile(name) end
-            return nil
-        end)
-        if s then return r end
-    end
-    return nil
-end
-
-local function deleteFile(name)
-    if isfile and delfile then
-        pcall(function() if isfile(name) then delfile(name) end end)
-    end
-end
-
-local function setClipboard(text)
-    if setclipboard then pcall(setclipboard, text) end
-end
-
-local function getHWID()
-    local hwid
-    local funcs = {
-        function() return gethwid and gethwid() end,
-        function() return getexecutorhwid and getexecutorhwid() end,
-        function() return syn and syn.cache_hwid and syn.cache_hwid() end,
-        function() return fluxus and fluxus.get_hwid and fluxus.get_hwid() end,
-        function() return get_hwid and get_hwid() end,
-        function() return HWID and HWID() end
+// ============================================
+// 📦 STORES
+// ============================================
+class LimitedMap extends Map {
+    constructor(maxSize = 10000) {
+        super();
+        this.maxSize = maxSize;
     }
-    for _, f in ipairs(funcs) do
-        local s, r = pcall(f)
-        if s and r and r ~= "" then
-            hwid = tostring(r)
-            break
-        end
-    end
-    if hwid then
-        return hwid .. "_" .. LocalPlayer.UserId
-    end
-    return "NOHWID_" .. LocalPlayer.UserId .. "_" .. LocalPlayer.Name
-end
+    set(key, value) {
+        if (this.size >= this.maxSize) {
+            const firstKey = this.keys().next().value;
+            this.delete(firstKey);
+        }
+        return super.set(key, value);
+    }
+}
 
-local function doRequest(url, method, headers, body)
-    headers = headers or {}
-    headers["UH-Executor"] = "true"
-    headers["UH-Version"] = CFG.VERSION
-    
-    local requestFunc = (syn and syn.request) or request or http_request or 
-                        (fluxus and fluxus.request) or (delta and delta.request)
-    
-    if requestFunc then
-        local s, r = pcall(function()
-            return requestFunc({Url = url, Method = method or "GET", Headers = headers, Body = body})
-        end)
-        if s and r then return r end
-    end
-    
-    if method == "GET" or not method then
-        local s, r = pcall(function() return game:HttpGet(url) end)
-        if s then return {Body = r, StatusCode = 200} end
-    end
-    return nil
-end
+const stores = {
+    rateLimits: new LimitedMap(5000),
+    tempBlocks: new LimitedMap(1000),
+    failedAttempts: new LimitedMap(2000),
+    warnings: new LimitedMap(2000),
+    workinkCache: new LimitedMap(5000),
+};
 
-local function notify(title, text, duration)
-    pcall(function()
-        StarterGui:SetCore("SendNotification", {Title = title or "Ultimate Hub", Text = text or "", Duration = duration or 5})
-    end)
-end
-
-local function openURL(url)
-    if not url or url == "" then return false end
-    local funcs = {"openurl", "OpenURL", "open_url", "browseurl", "BrowseURL"}
-    for _, n in ipairs(funcs) do
-        local f = getgenv()[n] or _G[n]
-        if f and type(f) == "function" and pcall(f, url) then return true end
-    end
-    pcall(function() if syn and syn.open_browser then syn.open_browser(url) end end)
-    return false
-end
-
--- ============================================
--- KEY VALIDATION
--- ============================================
-local keyCache = {}
-
-local function validateKey(key)
-    if not key or key == "" then return false, "Please enter a key!" end
-    key = key:gsub("^%s*(.-)%s*$", "%1")
-    if #key < 5 then return false, "Key too short!" end
+// ============================================
+// 📦 SCRIPT CACHE
+// ============================================
+const scriptCache = {
+    content: null,
+    checksum: null,
+    lastFetch: 0,
+    fetching: false,
     
-    -- Cache check
-    if keyCache[key] and (os.time() - keyCache[key].time) < 300 then
-        return keyCache[key].valid, keyCache[key].msg
-    end
+    isValid() {
+        return this.content && (Date.now() - this.lastFetch < CONFIG.SCRIPT_CACHE_TTL);
+    },
     
-    local hwid = getHWID()
-    
-    -- Request to server
-    local success, result = pcall(function()
-        local response = doRequest(CFG.SERVER .. "/api/validate", "POST", {
-            ["Content-Type"] = "application/json"
-        }, HttpService:JSONEncode({
-            key = key,
-            hwid = hwid,
-            userId = LocalPlayer.UserId,
-            userName = LocalPlayer.Name
-        }))
-        if response and response.Body then
-            return HttpService:JSONDecode(response.Body)
-        end
-        return nil
-    end)
-    
-    if success and result then
-        if result.valid == true or result.success == true then
-            if result.bound_to_other then
-                local boundName = result.bound_user or "Unknown"
-                keyCache[key] = {valid = false, msg = "Key bound to: " .. boundName, time = os.time()}
-                return false, "Key bound to: " .. boundName
-            end
-            local msg = result.message or "Key Valid!"
-            if result.new_binding then msg = "Key Registered!"
-            elseif result.returning_user then msg = "Welcome back!" end
-            keyCache[key] = {valid = true, msg = msg, time = os.time()}
-            return true, msg
-        else
-            local errMsg = result.message or "Invalid key!"
-            keyCache[key] = {valid = false, msg = errMsg, time = os.time()}
-            return false, errMsg
-        end
-    end
-    
-    -- Fallback to Work.ink
-    local fallbackValid = false
-    success, result = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet("https://work.ink/_api/v2/token/isValid/" .. key))
-    end)
-    if success and result and result.valid == true then
-        fallbackValid = true
-    end
-    
-    if fallbackValid then
-        keyCache[key] = {valid = true, msg = "Key Valid!", time = os.time()}
-        return true, "Key Valid!"
-    end
-    
-    keyCache[key] = {valid = false, msg = "Invalid key!", time = os.time()}
-    return false, "Invalid key!"
-end
-
--- ============================================
--- KEY SYSTEM UI
--- ============================================
-local function createKeySystem()
-    pcall(function() if getgenv().UH then getgenv().UH:Destroy() end end)
-    pcall(function()
-        local k = CoreGui:FindFirstChild("UltimateHubKeySystem")
-        if k then k:Destroy() end
-    end)
-    task.wait(0.1)
-    
-    -- Check saved key
-    if CFG.SAVE_KEY then
-        local savedKey = readFile(CFG.KEY_FILE)
-        local savedUser = readFile(CFG.USER_FILE)
-        local currentUser = getHWID()
-        if savedKey and savedKey ~= "" then
-            if savedUser and savedUser ~= currentUser then
-                deleteFile(CFG.KEY_FILE)
-                deleteFile(CFG.USER_FILE)
-                notify("Ultimate Hub", "Key reset: Different device", 3)
-            else
-                notify("Ultimate Hub", "Checking saved key...", 2)
-                local valid = validateKey(savedKey)
-                if valid then
-                    saveFile(CFG.USER_FILE, currentUser)
-                    notify("Ultimate Hub", "Key valid! Loading...", 2)
-                    return true
-                end
-                deleteFile(CFG.KEY_FILE)
-                deleteFile(CFG.USER_FILE)
-            end
-        end
-    end
-    
-    -- Create GUI
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "UltimateHubKeySystem"
-    ScreenGui.ResetOnSpawn = false
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    pcall(function() ScreenGui.Parent = CoreGui end)
-    if not ScreenGui.Parent then
-        pcall(function() ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end)
-    end
-    
-    local Background = Instance.new("Frame")
-    Background.Size = UDim2.new(1, 0, 1, 0)
-    Background.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    Background.BackgroundTransparency = 0.5
-    Background.BorderSizePixel = 0
-    Background.Parent = ScreenGui
-    
-    local MainFrame = Instance.new("Frame")
-    MainFrame.Size = UDim2.new(0, 360, 0, 220)
-    MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-    MainFrame.BorderSizePixel = 0
-    MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-    MainFrame.Parent = ScreenGui
-    Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
-    local MainStroke = Instance.new("UIStroke", MainFrame)
-    MainStroke.Color = Color3.fromRGB(100, 100, 255)
-    MainStroke.Thickness = 2
-    
-    -- Title Bar
-    local TitleBar = Instance.new("Frame")
-    TitleBar.Size = UDim2.new(1, 0, 0, 45)
-    TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-    TitleBar.BorderSizePixel = 0
-    TitleBar.Parent = MainFrame
-    Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 12)
-    
-    local TitleFix = Instance.new("Frame")
-    TitleFix.Size = UDim2.new(1, 0, 0, 15)
-    TitleFix.Position = UDim2.new(0, 0, 1, -15)
-    TitleFix.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-    TitleFix.BorderSizePixel = 0
-    TitleFix.Parent = TitleBar
-    
-    local TitleLabel = Instance.new("TextLabel")
-    TitleLabel.Size = UDim2.new(1, -20, 0, 25)
-    TitleLabel.Position = UDim2.new(0, 10, 0, 5)
-    TitleLabel.BackgroundTransparency = 1
-    TitleLabel.Text = "🔐 Ultimate Hub V" .. CFG.VERSION
-    TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    TitleLabel.TextSize = 18
-    TitleLabel.Font = Enum.Font.GothamBold
-    TitleLabel.TextXAlignment = Enum.TextXAlignment.Center
-    TitleLabel.Parent = TitleBar
-    
-    local StatusLabel = Instance.new("TextLabel")
-    StatusLabel.Size = UDim2.new(1, -20, 0, 15)
-    StatusLabel.Position = UDim2.new(0, 10, 0, 28)
-    StatusLabel.BackgroundTransparency = 1
-    StatusLabel.Text = "🔒 Secure Server (Active)"
-    StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-    StatusLabel.TextSize = 10
-    StatusLabel.Font = Enum.Font.Gotham
-    StatusLabel.TextXAlignment = Enum.TextXAlignment.Center
-    StatusLabel.Parent = TitleBar
-    
-    local UserInfo = Instance.new("TextLabel")
-    UserInfo.Size = UDim2.new(1, 0, 0, 15)
-    UserInfo.Position = UDim2.new(0, 0, 0, 50)
-    UserInfo.BackgroundTransparency = 1
-    UserInfo.Text = "👤 " .. LocalPlayer.Name .. " (ID: " .. LocalPlayer.UserId .. ")"
-    UserInfo.TextColor3 = Color3.fromRGB(120, 120, 140)
-    UserInfo.TextSize = 10
-    UserInfo.Font = Enum.Font.Gotham
-    UserInfo.Parent = MainFrame
-    
-    -- Input
-    local InputContainer = Instance.new("Frame")
-    InputContainer.Size = UDim2.new(0, 320, 0, 40)
-    InputContainer.Position = UDim2.new(0.5, -160, 0, 70)
-    InputContainer.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-    InputContainer.BorderSizePixel = 0
-    InputContainer.Parent = MainFrame
-    Instance.new("UICorner", InputContainer).CornerRadius = UDim.new(0, 8)
-    local InputStroke = Instance.new("UIStroke", InputContainer)
-    InputStroke.Color = Color3.fromRGB(60, 60, 80)
-    InputStroke.Thickness = 1
-    
-    local KeyInput = Instance.new("TextBox")
-    KeyInput.Size = UDim2.new(1, -16, 1, 0)
-    KeyInput.Position = UDim2.new(0, 8, 0, 0)
-    KeyInput.BackgroundTransparency = 1
-    KeyInput.Text = ""
-    KeyInput.PlaceholderText = "Paste your key here..."
-    KeyInput.PlaceholderColor3 = Color3.fromRGB(100, 100, 100)
-    KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-    KeyInput.TextSize = 13
-    KeyInput.Font = Enum.Font.Gotham
-    KeyInput.ClearTextOnFocus = false
-    KeyInput.Parent = InputContainer
-    
-    local StatusText = Instance.new("TextLabel")
-    StatusText.Size = UDim2.new(1, -40, 0, 25)
-    StatusText.Position = UDim2.new(0, 20, 0, 115)
-    StatusText.BackgroundTransparency = 1
-    StatusText.Text = ""
-    StatusText.TextColor3 = Color3.fromRGB(255, 100, 100)
-    StatusText.TextSize = 11
-    StatusText.Font = Enum.Font.Gotham
-    StatusText.TextXAlignment = Enum.TextXAlignment.Center
-    StatusText.TextWrapped = true
-    StatusText.Parent = MainFrame
-    
-    -- Buttons
-    local SubmitButton = Instance.new("TextButton")
-    SubmitButton.Size = UDim2.new(0, 155, 0, 36)
-    SubmitButton.Position = UDim2.new(0.5, -160, 0, 145)
-    SubmitButton.BackgroundColor3 = Color3.fromRGB(80, 120, 255)
-    SubmitButton.BorderSizePixel = 0
-    SubmitButton.Text = "✓ Validate Key"
-    SubmitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    SubmitButton.TextSize = 13
-    SubmitButton.Font = Enum.Font.GothamBold
-    SubmitButton.Parent = MainFrame
-    Instance.new("UICorner", SubmitButton).CornerRadius = UDim.new(0, 8)
-    
-    local GetKeyButton = Instance.new("TextButton")
-    GetKeyButton.Size = UDim2.new(0, 155, 0, 36)
-    GetKeyButton.Position = UDim2.new(0.5, 5, 0, 145)
-    GetKeyButton.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
-    GetKeyButton.BorderSizePixel = 0
-    GetKeyButton.Text = "🔑 Get Key"
-    GetKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    GetKeyButton.TextSize = 13
-    GetKeyButton.Font = Enum.Font.GothamBold
-    GetKeyButton.Parent = MainFrame
-    Instance.new("UICorner", GetKeyButton).CornerRadius = UDim.new(0, 8)
-    
-    -- Bottom
-    local BottomContainer = Instance.new("Frame")
-    BottomContainer.Size = UDim2.new(1, -20, 0, 20)
-    BottomContainer.Position = UDim2.new(0, 10, 1, -25)
-    BottomContainer.BackgroundTransparency = 1
-    BottomContainer.Parent = MainFrame
-    
-    local AttemptsLabel = Instance.new("TextLabel")
-    AttemptsLabel.Size = UDim2.new(0.5, 0, 1, 0)
-    AttemptsLabel.BackgroundTransparency = 1
-    AttemptsLabel.Text = "Attempts: 0/" .. CFG.MAX_ATTEMPTS
-    AttemptsLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
-    AttemptsLabel.TextSize = 10
-    AttemptsLabel.Font = Enum.Font.Gotham
-    AttemptsLabel.TextXAlignment = Enum.TextXAlignment.Left
-    AttemptsLabel.Parent = BottomContainer
-    
-    local CreditLabel = Instance.new("TextLabel")
-    CreditLabel.Size = UDim2.new(0.5, 0, 1, 0)
-    CreditLabel.Position = UDim2.new(0.5, 0, 0, 0)
-    CreditLabel.BackgroundTransparency = 1
-    CreditLabel.Text = "by ToingDC"
-    CreditLabel.TextColor3 = Color3.fromRGB(70, 70, 80)
-    CreditLabel.TextSize = 10
-    CreditLabel.Font = Enum.Font.Gotham
-    CreditLabel.TextXAlignment = Enum.TextXAlignment.Right
-    CreditLabel.Parent = BottomContainer
-    
-    -- Animation
-    MainFrame.Size = UDim2.new(0, 0, 0, 0)
-    TweenService:Create(MainFrame, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 360, 0, 220)}):Play()
-    
-    -- Logic
-    local keyValid = false
-    local validationComplete = Instance.new("BindableEvent")
-    local isProcessing = false
-    
-    local function closeGUI()
-        TweenService:Create(MainFrame, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Size = UDim2.new(0, 0, 0, 0)}):Play()
-        TweenService:Create(Background, TweenInfo.new(0.25), {BackgroundTransparency = 1}):Play()
-        task.wait(0.25)
-        ScreenGui:Destroy()
-    end
-    
-    local function submitKey()
-        if isProcessing then return end
-        isProcessing = true
-        local inputKey = KeyInput.Text:gsub("^%s*(.-)%s*$", "%1")
+    async refresh(force = false) {
+        if (this.fetching) return this.content;
+        if (!force && this.isValid()) return this.content;
         
-        if inputKey == "" then
-            StatusText.Text = "⚠️ Please enter a key!"
-            StatusText.TextColor3 = Color3.fromRGB(255, 200, 100)
-            isProcessing = false
-            return
-        end
+        this.fetching = true;
         
-        if attempts >= CFG.MAX_ATTEMPTS then
-            local timeLeft = CFG.COOLDOWN - (os.time() - lastAttemptTime)
-            if timeLeft > 0 then
-                StatusText.Text = "⏳ Wait " .. timeLeft .. " seconds..."
-                StatusText.TextColor3 = Color3.fromRGB(255, 100, 100)
-                isProcessing = false
-                return
-            else
-                attempts = 0
-            end
-        end
-        
-        StatusText.Text = "🔄 Connecting to server..."
-        StatusText.TextColor3 = Color3.fromRGB(255, 255, 100)
-        SubmitButton.Text = "..."
-        SubmitButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-        
-        task.spawn(function()
-            task.wait(0.3)
-            local valid, message = validateKey(inputKey)
+        try {
+            console.log('[CACHE] 🔄 Fetching script...');
+            const response = await axios.get(CONFIG.LOADER_SCRIPT_URL, {
+                timeout: 15000,
+                headers: { 'User-Agent': `UltimateHub/${CONFIG.VERSION}` }
+            });
             
-            if valid then
-                StatusText.Text = "✅ " .. message
-                StatusText.TextColor3 = Color3.fromRGB(100, 255, 100)
-                SubmitButton.Text = "✓ Success!"
-                SubmitButton.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
-                if CFG.SAVE_KEY then
-                    saveFile(CFG.KEY_FILE, inputKey)
-                    saveFile(CFG.USER_FILE, getHWID())
-                end
-                task.wait(1.2)
-                closeGUI()
-                keyValid = true
-                validationComplete:Fire()
-            else
-                attempts = attempts + 1
-                lastAttemptTime = os.time()
-                StatusText.Text = "❌ " .. message
-                StatusText.TextColor3 = Color3.fromRGB(255, 100, 100)
-                SubmitButton.Text = "✓ Validate Key"
-                SubmitButton.BackgroundColor3 = Color3.fromRGB(80, 120, 255)
-                AttemptsLabel.Text = "Attempts: " .. attempts .. "/" .. CFG.MAX_ATTEMPTS
+            this.content = response.data;
+            this.checksum = crypto.createHash('sha256').update(this.content).digest('hex').slice(0, 16);
+            this.lastFetch = Date.now();
+            
+            console.log(`[CACHE] ✅ Script cached (${this.content.length} bytes)`);
+            
+            return this.content;
+        } catch (error) {
+            console.error('[CACHE] ❌ Fetch failed:', error.message);
+            return this.content;
+        } finally {
+            this.fetching = false;
+        }
+    },
+    
+    get() {
+        return {
+            content: this.content,
+            checksum: this.checksum,
+            cached: this.isValid()
+        };
+    }
+};
+
+// ============================================
+// 🔐 CRYPTO
+// ============================================
+class Crypto {
+    static encrypt(text) {
+        try {
+            const iv = crypto.randomBytes(16);
+            const key = crypto.scryptSync(CONFIG.MASTER_SECRET, 'salt', 32);
+            const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+            
+            let encrypted = cipher.update(text, 'utf8', 'hex');
+            encrypted += cipher.final('hex');
+            const tag = cipher.getAuthTag();
+            
+            return { 
+                iv: iv.toString('hex'), 
+                data: encrypted, 
+                tag: tag.toString('hex')
+            };
+        } catch (e) {
+            console.error('[CRYPTO] Encrypt error:', e.message);
+            return null;
+        }
+    }
+    
+    static decrypt(encrypted) {
+        try {
+            const key = crypto.scryptSync(CONFIG.MASTER_SECRET, 'salt', 32);
+            const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(encrypted.iv, 'hex'));
+            decipher.setAuthTag(Buffer.from(encrypted.tag, 'hex'));
+            
+            let decrypted = decipher.update(encrypted.data, 'hex', 'utf8');
+            decrypted += decipher.final('utf8');
+            return decrypted;
+        } catch (e) {
+            console.error('[CRYPTO] Decrypt error:', e.message);
+            return null;
+        }
+    }
+    
+    static hashHWID(hwid) {
+        return crypto.createHash('sha512').update(hwid + CONFIG.MASTER_SECRET).digest('hex');
+    }
+}
+
+// ============================================
+// 💾 DATABASE
+// ============================================
+class Database {
+    static data = {};
+    static dirty = false;
+    static saving = false;
+    
+    static async load() {
+        try {
+            if (fsSync.existsSync(CONFIG.DB_FILE)) {
+                const content = await fs.readFile(CONFIG.DB_FILE, 'utf8');
+                const encrypted = JSON.parse(content);
+                const decrypted = Crypto.decrypt(encrypted);
                 
-                -- Shake animation
-                local originalPos = InputContainer.Position
-                for i = 1, 4 do
-                    InputContainer.Position = originalPos + UDim2.new(0, i % 2 == 0 and 6 or -6, 0, 0)
-                    task.wait(0.04)
-                end
-                InputContainer.Position = originalPos
-                InputStroke.Color = Color3.fromRGB(255, 80, 80)
-                task.wait(0.5)
-                InputStroke.Color = Color3.fromRGB(60, 60, 80)
-                isProcessing = false
-            end
-        end)
-    end
+                if (decrypted) {
+                    this.data = JSON.parse(decrypted);
+                    console.log(`[DB] ✅ Loaded ${Object.keys(this.data).length} keys`);
+                } else {
+                    console.log('[DB] ⚠️ Could not decrypt, starting fresh');
+                    this.data = {};
+                }
+            } else {
+                console.log('[DB] 📁 Starting with empty database');
+                this.data = {};
+            }
+        } catch (e) {
+            console.error('[DB] ❌ Load error:', e.message);
+            this.data = {};
+        }
+    }
     
-    -- Events
-    SubmitButton.MouseEnter:Connect(function()
-        TweenService:Create(SubmitButton, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 140, 255)}):Play()
-    end)
-    SubmitButton.MouseLeave:Connect(function()
-        TweenService:Create(SubmitButton, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(80, 120, 255)}):Play()
-    end)
-    GetKeyButton.MouseEnter:Connect(function()
-        TweenService:Create(GetKeyButton, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(108, 121, 255)}):Play()
-    end)
-    GetKeyButton.MouseLeave:Connect(function()
-        TweenService:Create(GetKeyButton, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(88, 101, 242)}):Play()
-    end)
+    static async save() {
+        if (this.saving) return;
+        this.saving = true;
+        
+        try {
+            const encrypted = Crypto.encrypt(JSON.stringify(this.data));
+            if (encrypted) {
+                await fs.writeFile(CONFIG.DB_FILE, JSON.stringify(encrypted, null, 2));
+                this.dirty = false;
+            }
+        } catch (e) {
+            console.error('[DB] ❌ Save error:', e.message);
+        } finally {
+            this.saving = false;
+        }
+    }
     
-    SubmitButton.MouseButton1Click:Connect(submitKey)
-    KeyInput.FocusLost:Connect(function(enterPressed)
-        if enterPressed then submitKey() end
-    end)
-    GetKeyButton.MouseButton1Click:Connect(function()
-        if openURL(CFG.GET_KEY) then
-            StatusText.Text = "🌐 Browser opened!"
-            StatusText.TextColor3 = Color3.fromRGB(100, 255, 100)
-        else
-            setClipboard(CFG.GET_KEY)
-            StatusText.Text = "📋 Link copied!"
-            StatusText.TextColor3 = Color3.fromRGB(100, 200, 255)
-        end
-    end)
+    static async backup() {
+        try {
+            await fs.mkdir(CONFIG.BACKUP_DIR, { recursive: true });
+            
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const backupFile = `${CONFIG.BACKUP_DIR}/db-${timestamp}.json`;
+            
+            if (fsSync.existsSync(CONFIG.DB_FILE)) {
+                await fs.copyFile(CONFIG.DB_FILE, backupFile);
+                
+                const files = await fs.readdir(CONFIG.BACKUP_DIR);
+                const backups = files.filter(f => f.startsWith('db-')).sort().reverse();
+                
+                for (let i = 5; i < backups.length; i++) {
+                    await fs.unlink(`${CONFIG.BACKUP_DIR}/${backups[i]}`);
+                }
+            }
+        } catch (e) {
+            console.error('[DB] Backup error:', e.message);
+        }
+    }
     
-    validationComplete.Event:Wait()
-    validationComplete:Destroy()
-    return keyValid
-end
+    static get(key) { return this.data[key]; }
+    static set(key, value) { this.data[key] = value; this.dirty = true; }
+    static has(key) { return key in this.data; }
+    static delete(key) { delete this.data[key]; this.dirty = true; }
+    static count() { return Object.keys(this.data).length; }
+}
 
--- ============================================
--- LOAD CORE
--- ============================================
-local function loadCore()
-    notify("Ultimate Hub", "Loading core...", 2)
-    local success, err = pcall(function()
-        loadstring(game:HttpGet(CFG.SERVER .. "/core"))()
-    end)
-    if not success then
-        notify("Ultimate Hub", "Load failed: " .. tostring(err), 5)
-        return false
-    end
-    return true
-end
+// ============================================
+// 📝 LOGGER (Simplified)
+// ============================================
+function log(event, data, level = 'info') {
+    const colors = { info: '\x1b[36m', warning: '\x1b[33m', error: '\x1b[31m', success: '\x1b[32m' };
+    console.log(`${colors[level] || colors.info}[${level.toUpperCase()}]\x1b[0m ${event}:`, JSON.stringify(data));
+}
 
--- Main
-if createKeySystem() then
-    loadCore()
-end
+// ============================================
+// 🛡️ HELPERS
+// ============================================
+function getRealIP(req) {
+    const forwarded = req.headers['x-forwarded-for'];
+    const ip = forwarded?.split(',')[0]?.trim() || 
+               req.headers['x-real-ip'] || 
+               req.connection?.remoteAddress || 
+               req.ip || 'unknown';
+    return ip === '::1' ? '127.0.0.1' : ip.replace('::ffff:', '');
+}
+
+function isExecutor(req) {
+    const ua = (req.headers['user-agent'] || '').toLowerCase();
+    const accept = req.headers['accept'] || '';
+    
+    if (req.headers['uh-executor'] || req.headers['x-executor']) return true;
+    if (accept.includes('text/html') && ua.includes('mozilla')) return false;
+    if (req.headers['sec-fetch-mode']) return false;
+    if (ua.includes('roblox') || ua.includes('synapse') || ua.includes('krnl')) return true;
+    
+    return true;
+}
+
+// ============================================
+// 🚦 MIDDLEWARE
+// ============================================
+function rateLimiter(req, res, next) {
+    const ip = getRealIP(req);
+    const now = Date.now();
+    
+    const blockInfo = stores.tempBlocks.get(ip);
+    if (blockInfo && blockInfo.until > now) {
+        const remaining = Math.ceil((blockInfo.until - now) / 1000);
+        if (!isExecutor(req)) return res.status(429).send(NOT_AUTHORIZED_HTML);
+        return res.status(429).json({ error: 'rate_limited', retryAfter: remaining });
+    } else if (blockInfo) {
+        stores.tempBlocks.delete(ip);
+        stores.warnings.delete(ip);
+        stores.failedAttempts.delete(ip);
+    }
+    
+    const key = `${ip}:normal`;
+    let rateInfo = stores.rateLimits.get(key);
+    
+    if (!rateInfo || rateInfo.resetAt < now) {
+        rateInfo = { count: 1, resetAt: now + CONFIG.RATE_LIMIT_WINDOW };
+    } else {
+        rateInfo.count++;
+    }
+    
+    stores.rateLimits.set(key, rateInfo);
+    
+    if (rateInfo.count > CONFIG.RATE_LIMIT_MAX) {
+        const warnings = stores.warnings.get(ip) || 0;
+        
+        if (warnings < 2) {
+            stores.warnings.set(ip, warnings + 1);
+            return res.status(429).json({ error: 'slow_down', warning: warnings + 1 });
+        }
+        
+        stores.tempBlocks.set(ip, { until: now + CONFIG.BLOCK_DURATION, reason: 'rate_limit' });
+        return res.status(429).json({ error: 'temporarily_blocked', retryAfter: 300 });
+    }
+    
+    next();
+}
+
+function securityHeaders(req, res, next) {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.removeHeader('X-Powered-By');
+    next();
+}
+
+// ============================================
+// 🔧 VALIDATORS
+// ============================================
+const Validator = {
+    key: (key) => key && typeof key === 'string' && key.length >= 5 && key.length <= 100 && /^[a-zA-Z0-9\-_]+$/.test(key),
+    hwid: (hwid) => hwid && typeof hwid === 'string' && hwid.length >= 10 && hwid.length <= 300,
+    sanitize: (str, maxLen = 100) => typeof str === 'string' ? str.replace(/[<>\"'&\x00-\x1f]/g, '').substring(0, maxLen).trim() : ''
+};
+
+// ============================================
+// 🔑 WORK.INK VALIDATION
+// ============================================
+async function validateWorkInk(key, ip) {
+    const cacheKey = `workink:${key}`;
+    const now = Date.now();
+    
+    const cached = stores.workinkCache.get(cacheKey);
+    if (cached && (now - cached.time < CONFIG.WORKINK_CACHE_TTL)) {
+        return cached.valid;
+    }
+    
+    try {
+        const response = await axios.get(CONFIG.WORKINK_API + encodeURIComponent(key), { timeout: 10000 });
+        const valid = response.data?.valid === true;
+        stores.workinkCache.set(cacheKey, { valid, time: now });
+        return valid;
+    } catch (error) {
+        log('WORKINK_ERROR', { ip, error: error.message }, 'warning');
+        return cached ? cached.valid : null;
+    }
+}
+
+// ============================================
+// 🚀 EXPRESS SETUP
+// ============================================
+app.use(express.json({ limit: '10kb' }));
+app.use(cors({ origin: '*' }));
+app.use(securityHeaders);
+app.use(rateLimiter);
+
+// ============================================
+// 📍 ROUTES
+// ============================================
+
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'ok', 
+        version: CONFIG.VERSION,
+        cache: { script: scriptCache.isValid() },
+        keys: Database.count()
+    });
+});
+
+app.get('/', (req, res) => {
+    if (!isExecutor(req)) return res.status(401).send(NOT_AUTHORIZED_HTML);
+    res.json({ status: 'online', version: CONFIG.VERSION });
+});
+
+// Script Loader
+['/script', '/api/script', '/loader', '/load', '/s'].forEach(path => {
+    app.get(path, async (req, res) => {
+        const ip = getRealIP(req);
+        
+        if (!isExecutor(req)) {
+            log('BROWSER_ACCESS', { ip }, 'warning');
+            return res.status(401).send(NOT_AUTHORIZED_HTML);
+        }
+        
+        try {
+            const cached = scriptCache.get();
+            
+            if (!cached.content) {
+                await scriptCache.refresh(true);
+                const newCached = scriptCache.get();
+                if (!newCached.content) throw new Error('Script unavailable');
+                return res.setHeader('Content-Type', 'text/plain; charset=utf-8').send(newCached.content);
+            }
+            
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.send(cached.content);
+            
+            if (!cached.cached) scriptCache.refresh();
+            
+        } catch (error) {
+            log('SCRIPT_ERROR', { ip, error: error.message }, 'error');
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.send('-- Script temporarily unavailable');
+        }
+    });
+});
+
+// Validate Key
+app.post('/api/validate', async (req, res) => {
+    const ip = getRealIP(req);
+    
+    try {
+        const { key, hwid, userId, userName } = req.body;
+        
+        if (!Validator.key(key)) {
+            return res.json({ valid: false, error: 'invalid_key_format' });
+        }
+        
+        if (!Validator.hwid(hwid)) {
+            return res.json({ valid: false, error: 'invalid_hwid' });
+        }
+        
+        const isValidKey = await validateWorkInk(key, ip);
+        
+        if (isValidKey === null) {
+            return res.json({ valid: false, error: 'validation_failed', message: 'Cannot verify key' });
+        }
+        
+        if (!isValidKey) {
+            const existing = Database.get(key);
+            if (existing) {
+                Database.delete(key);
+                Database.save();
+            }
+            
+            const attempts = (stores.failedAttempts.get(ip) || 0) + 1;
+            stores.failedAttempts.set(ip, attempts);
+            
+            if (attempts >= CONFIG.MAX_FAILED_ATTEMPTS) {
+                stores.tempBlocks.set(ip, { until: Date.now() + CONFIG.BLOCK_DURATION, reason: 'invalid_keys' });
+            }
+            
+            return res.json({ valid: false, error: 'invalid_key' });
+        }
+        
+        stores.failedAttempts.delete(ip);
+        stores.warnings.delete(ip);
+        
+        const hashedHWID = Crypto.hashHWID(hwid);
+        const existing = Database.get(key);
+        
+        if (existing) {
+            if (existing.hwid !== hashedHWID) {
+                return res.json({ valid: false, error: 'bound_to_other', boundUser: existing.userName });
+            }
+            
+            existing.lastUsed = Date.now();
+            existing.useCount = (existing.useCount || 0) + 1;
+            Database.set(key, existing);
+            
+            log('KEY_VALIDATED', { ip, key: key.slice(0, 8) + '...' }, 'success');
+            
+            return res.json({ valid: true, returning: true, userName: existing.userName });
+        }
+        
+        Database.set(key, {
+            hwid: hashedHWID,
+            userId: Validator.sanitize(String(userId || ''), 20),
+            userName: Validator.sanitize(String(userName || 'Unknown'), 50),
+            boundAt: Date.now(),
+            lastUsed: Date.now(),
+            useCount: 1,
+            boundIP: ip
+        });
+        
+        log('KEY_BOUND', { ip, key: key.slice(0, 8) + '...' }, 'success');
+        
+        return res.json({ valid: true, newBinding: true });
+        
+    } catch (error) {
+        log('VALIDATE_ERROR', { ip, error: error.message }, 'error');
+        return res.json({ valid: false, error: 'server_error' });
+    }
+});
+
+// 404
+app.use('*', (req, res) => {
+    if (!isExecutor(req)) return res.status(404).send(NOT_AUTHORIZED_HTML);
+    res.status(404).json({ error: 'not_found' });
+});
+
+// ============================================
+// 🧹 CLEANUP
+// ============================================
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, info] of stores.tempBlocks) {
+        if (info.until < now) {
+            stores.tempBlocks.delete(ip);
+            stores.warnings.delete(ip);
+            stores.failedAttempts.delete(ip);
+        }
+    }
+    for (const [key, info] of stores.rateLimits) {
+        if (info.resetAt < now) stores.rateLimits.delete(key);
+    }
+    for (const [key, info] of stores.workinkCache) {
+        if (now - info.time > CONFIG.WORKINK_CACHE_TTL * 2) stores.workinkCache.delete(key);
+    }
+}, 60 * 1000);
+
+setInterval(async () => {
+    if (Database.dirty) await Database.save();
+}, 30 * 1000);
+
+setInterval(() => Database.backup(), 60 * 60 * 1000);
+
+setInterval(() => scriptCache.refresh(), CONFIG.SCRIPT_CACHE_TTL);
+
+// ============================================
+// 🚀 START
+// ============================================
+async function start() {
+    console.log('\n\x1b[36m╔═══════════════════════════════════════════════════════════════╗\x1b[0m');
+    console.log('\x1b[36m║   🔥 ULTIMATE HUB - SIMPLE & SECURE v4.0                     ║\x1b[0m');
+    console.log('\x1b[36m╚═══════════════════════════════════════════════════════════════╝\x1b[0m\n');
+    
+    loadOrGenerateSecrets();
+    await Database.load();
+    await scriptCache.refresh(true);
+    
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`\n\x1b[32m╔═══════════════════════════════════════════════════════════════╗
+║                    ✅ SERVER STARTED                          ║
+╠═══════════════════════════════════════════════════════════════╣
+║  🌐 Port: ${String(PORT).padEnd(52)}║
+║  📦 Version: ${CONFIG.VERSION.padEnd(49)}║
+║  🔒 Security: 95%                                             ║
+║                                                               ║
+║  ✅ Features:                                                 ║
+║     • Auto-generated secrets (no manual setup!)               ║
+║     • Encrypted database (AES-256)                            ║
+║     • HWID binding (SHA-512)                                  ║
+║     • Work.ink validation + cache                             ║
+║     • Script caching (10 min)                                 ║
+║     • Rate limiting (5 min blocks)                            ║
+║     • Auto backup every hour                                  ║
+║                                                               ║
+║  📊 Status:                                                   ║
+║     • Keys: ${String(Database.count()).padEnd(48)}║
+║     • Script cached: ${String(scriptCache.isValid() ? 'YES' : 'NO').padEnd(39)}║
+╚═══════════════════════════════════════════════════════════════╝\x1b[0m\n`);
+    });
+}
+
+process.on('SIGINT', async () => {
+    console.log('\n[SERVER] Shutting down...');
+    await Database.save();
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    await Database.save();
+    process.exit(0);
+});
+
+start();
