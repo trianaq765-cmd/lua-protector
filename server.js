@@ -1,276 +1,10 @@
-const express = require('express');
-const cors = require('cors');
-const axios = require('axios');
-const fs = require('fs');
-const crypto = require('crypto');
-
-const app = express();
-
-// ============================================
-// SECURITY: Rate Limiting Manual
-// ============================================
-const rateLimitStore = {};
-const blockedIPs = {};
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 menit
-const RATE_LIMIT_MAX_REQUESTS = 30;
-const BLOCK_DURATION = 5 * 60 * 1000; // 5 menit block
-
-function getRealIP(req) {
-    return req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
-           req.headers['x-real-ip'] || 
-           req.connection?.remoteAddress || 
-           req.ip || 
-           'unknown';
-}
-
-function rateLimiter(req, res, next) {
-    const ip = getRealIP(req);
-    const now = Date.now();
-    
-    // Cek apakah IP diblokir
-    if (blockedIPs[ip] && blockedIPs[ip] > now) {
-        const remainingTime = Math.ceil((blockedIPs[ip] - now) / 1000);
-        return res.status(429).json({ 
-            error: "Too many requests", 
-            blocked: true,
-            retryAfter: remainingTime 
-        });
-    } else if (blockedIPs[ip]) {
-        delete blockedIPs[ip];
-    }
-    
-    // Inisialisasi atau reset window
-    if (!rateLimitStore[ip] || rateLimitStore[ip].resetTime < now) {
-        rateLimitStore[ip] = {
-            count: 1,
-            resetTime: now + RATE_LIMIT_WINDOW
-        };
-    } else {
-        rateLimitStore[ip].count++;
-    }
-    
-    // Cek limit
-    if (rateLimitStore[ip].count > RATE_LIMIT_MAX_REQUESTS) {
-        blockedIPs[ip] = now + BLOCK_DURATION;
-        console.log(`[BLOCKED] IP ${ip} - Too many requests`);
-        return res.status(429).json({ 
-            error: "Rate limit exceeded", 
-            blocked: true,
-            retryAfter: Math.ceil(BLOCK_DURATION / 1000)
-        });
-    }
-    
-    next();
-}
-
-// ============================================
-// SECURITY: CORS Configuration
-// ============================================
-const corsOptions = {
-    origin: '*',
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type', 'UH-Executor', 'UH-Version', 'X-Executor', 'Authorization'],
-    maxAge: 86400
-};
-
-app.use(cors(corsOptions));
-app.use(express.json({ limit: '10kb' })); // Limit body size
-app.use(rateLimiter);
-
-// ============================================
-// SECURITY: Security Headers Middleware
-// ============================================
-app.use((req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-    res.setHeader('Referrer-Policy', 'no-referrer');
-    res.removeHeader('X-Powered-By');
-    next();
-});
-
-// ============================================
-// DATABASE: Persistent File-Based
-// ============================================
-const DB_FILE = './keyDatabase.json';
-const ADMIN_SECRET = process.env.ADMIN_SECRET || crypto.randomBytes(32).toString('hex');
-
-let keyDatabase = {};
-
-function loadDatabase() {
-    try {
-        if (fs.existsSync(DB_FILE)) {
-            const data = fs.readFileSync(DB_FILE, 'utf8');
-            keyDatabase = JSON.parse(data);
-            console.log(`[DB] Loaded ${Object.keys(keyDatabase).length} keys`);
-        }
-    } catch (error) {
-        console.error('[DB] Error loading database:', error.message);
-        keyDatabase = {};
-    }
-}
-
-function saveDatabase() {
-    try {
-        fs.writeFileSync(DB_FILE, JSON.stringify(keyDatabase, null, 2));
-    } catch (error) {
-        console.error('[DB] Error saving database:', error.message);
-    }
-}
-
-// Auto-save setiap 5 menit
-setInterval(saveDatabase, 5 * 60 * 1000);
-
-// Load database saat startup
-loadDatabase();
-
-// Save saat shutdown
-process.on('SIGINT', () => {
-    console.log('[DB] Saving database before shutdown...');
-    saveDatabase();
-    process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-    console.log('[DB] Saving database before shutdown...');
-    saveDatabase();
-    process.exit(0);
-});
-
-// Work.ink API
-const WORKINK_API = "https://work.ink/_api/v2/token/isValid/";
-
-// ============================================
-// SECURITY: Input Validation & Sanitization
-// ============================================
-function sanitizeString(str, maxLength = 100) {
-    if (typeof str !== 'string') return '';
-    return str.replace(/[<>\"'&]/g, '').substring(0, maxLength).trim();
-}
-
-function validateKey(key) {
-    if (!key || typeof key !== 'string') return false;
-    if (key.length < 5 || key.length > 100) return false;
-    // Hanya izinkan alphanumeric dan beberapa karakter khusus
-    return /^[a-zA-Z0-9\-_]+$/.test(key);
-}
-
-function validateHWID(hwid) {
-    if (!hwid || typeof hwid !== 'string') return false;
-    if (hwid.length < 5 || hwid.length > 200) return false;
-    return true;
-}
-
-function hashKey(key) {
-    return crypto.createHash('sha256').update(key).digest('hex').substring(0, 16);
-}
-
-// ============================================
-// HTML PAGE: Not Authorized (Premium Style)
-// Width: 163.7mm, No shadow on ⛔ icon
-// ============================================
-const NOT_AUTHORIZED_HTML = `<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Unauthorized | Premium Protect</title>
-    <style>
-        * {
-            margin: 0; padding: 0; box-sizing: border-box;
-        }
-
-        body, html {
-            width: 100%; height: 100%; overflow: hidden;
-            background-color: #000000;
-            font-family: 'Inter', -apple-system, sans-serif;
-            color: #ffffff;
-        }
-
-        /* Background gradasi gelap bergerak halus */
-        .bg-layer {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(270deg, #000000, #0f172a, #000000);
-            background-size: 600% 600%;
-            animation: gradientShift 30s ease infinite;
-            z-index: 1;
-        }
-
-        .container {
-            position: relative;
-            z-index: 10;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            padding: 20px;
-            user-select: none;
-        }
-
-        .auth-label {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            color: #ffffff;
-            font-size: 1.1rem;
-            font-weight: 600;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            margin-bottom: 25px;
-        }
-
-        h1 {
-            color: #ffffff;
-            font-size: clamp(1.8rem, 5vw, 2.5rem);
-            font-weight: 800;
-            max-width: 700px;
-            margin: 0 0 20px 0;
-            line-height: 1.3;
-            background: linear-gradient(180deg, #ffffff 40%, #94a3b8 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        p {
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 1.1rem;
-            margin: 0;
-        }
-
-        .icon {
-            font-size: 1.4rem;
-        }
-
-        @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-    </style>
-</head>
-<body>
-    <div class="bg-layer"></div>
-
-    <div class="container">
-        <div class="auth-label">
-            <span class="icon">⛔</span>
-            Not Authorized
-            <span class="icon">⛔</span>
-        </div>
-
-        <h1>You are not allowed to view these files.</h1>
-        <p>Close this page & proceed.</p>
-    </div>
-</body>
-</html>`;
-
-// ============================================
-// SCRIPT LUA (Protected) - WITH CUSTOM HEADER
-// ============================================
 const PROTECTED_LOADER_SCRIPT = `
+-- ============================================
+-- ULTIMATE HUB V9.2 - FIXED DOUBLE LOAD
+-- ============================================
+
+-- Prevent double execution
+if getgenv().UHLoading then return end
 if getgenv().UHLoaded then
     pcall(function() getgenv().UH:Destroy() end)
     pcall(function() game:GetService("CoreGui"):FindFirstChild("UltimateHubKeySystem"):Destroy() end)
@@ -278,7 +12,8 @@ if getgenv().UHLoaded then
     getgenv().UH, getgenv().UHCore, getgenv().UHLoaded = nil, nil, nil
     task.wait(0.3)
 end
-getgenv().UHLoaded = true
+
+getgenv().UHLoading = true
 
 local CFG = {
     RailwayURL = "https://lua-protector-production.up.railway.app",
@@ -302,6 +37,9 @@ local PL = game:GetService("Players")
 local CG = game:GetService("CoreGui")
 local SG = game:GetService("StarterGui")
 local LP = PL.LocalPlayer
+
+-- Flag untuk tracking apakah Core sudah diload
+local CoreLoaded = false
 
 local function SF(f, c)
     if writefile then
@@ -565,6 +303,30 @@ local function VK(k)
     return false, "Invalid key!"
 end
 
+-- ============================================
+-- LOAD CORE FUNCTION (HANYA SEKALI)
+-- ============================================
+local function LoadCore()
+    if CoreLoaded and getgenv().UHCore then
+        return getgenv().UHCore
+    end
+    
+    local success = pcall(function()
+        loadstring(game:HttpGet(CFG.CU))()
+    end)
+    
+    if success then
+        CoreLoaded = true
+        task.wait(0.3)
+        return getgenv().UHCore
+    end
+    
+    return nil
+end
+
+-- ============================================
+-- KEY SYSTEM GUI
+-- ============================================
 local function CKS()
     pcall(function()
         if getgenv().UH then
@@ -909,31 +671,38 @@ local function CKS()
     return kv
 end
 
+-- ============================================
+-- LOAD HUB (FIXED - NO DOUBLE LOAD)
+-- ============================================
 local function LH()
-    local C = getgenv().UHCore
-    if not C then
-        pcall(function()
-            loadstring(game:HttpGet(CFG.CU))()
-        end)
-        task.wait(0.5)
-        C = getgenv().UHCore
-        if not C then
-            return
-        end
-    end
+    -- Cleanup Key System GUI
     pcall(function()
         CG:FindFirstChild("UltimateHubKeySystem"):Destroy()
     end)
+    
+    -- Load Core SEKALI SAJA
+    local C = LoadCore()
+    if not C then
+        SN("Ultimate Hub", "Failed to load core!", 3)
+        getgenv().UHLoading = nil
+        return
+    end
+    
     task.wait(0.2)
     
-    local S = C.S
+    -- Load Rayfield
     local R
     local loadSuccess = pcall(function()
         R = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
     end)
+    
     if not loadSuccess or not R then
+        SN("Ultimate Hub", "Failed to load UI!", 3)
+        getgenv().UHLoading = nil
         return
     end
+    
+    local S = C.Settings or {}
     
     R.Notify = function() end
     local W = R:CreateWindow({
@@ -957,16 +726,13 @@ local function LH()
     SV:CreateSection("Environment")
     SV:CreateToggle({Name = "No Fog", CurrentValue = false, Callback = function(v) if v then C.StartNoFog() else C.StopNoFog() end end})
     SV:CreateToggle({Name = "Fullbright", CurrentValue = false, Callback = function(v) C.SetFullbright(v) end})
-    SV:CreateSection("Auto Scripts")
-    SV:CreateButton({Name = "Load Auto Generator", Callback = function() C.LoadScript("https://raw.githubusercontent.com/trianaq765-cmd/VD/refs/heads/main/gene") end})
-    SV:CreateButton({Name = "Load Auto Heal", Callback = function() C.LoadScript("https://raw.githubusercontent.com/trianaq765-cmd/VD/refs/heads/main/auto%20heal") end})
     SV:CreateSection("Performance")
     SV:CreateToggle({Name = "Anti-Lag Mode", CurrentValue = false, Callback = function(v) if v then C.StartAntiLag() else C.StopAntiLag() end end})
     
     local K = W:CreateTab("Killer", 4483362458)
     K:CreateSection("Auto Attack")
     K:CreateToggle({Name = "Enable Auto Attack", CurrentValue = false, Callback = function(v) if v then C.StartAutoAttack() else C.StopAutoAttack() end end})
-    K:CreateSlider({Name = "Attack Distance", Range = {5, 30}, Increment = 1, CurrentValue = 15, Callback = function(v) S.Kil.AD = v end})
+    K:CreateSlider({Name = "Attack Distance", Range = {5, 30}, Increment = 1, CurrentValue = 15, Callback = function(v) if S.Kil then S.Kil.AD = v end end})
     K:CreateSection("Protection")
     K:CreateToggle({Name = "Anti-Blind", CurrentValue = false, Callback = function(v) if v then C.StartAntiBlind() else C.StopAntiBlind() end end})
     K:CreateSection("Camera Mode")
@@ -974,375 +740,101 @@ local function LH()
     
     local P = W:CreateTab("Player", 4483362458)
     P:CreateSection("Speed Boost")
-    local SPL = P:CreateLabel("Speed: " .. S.Plr.SP)
-    P:CreateButton({Name = "Speed -1", Callback = function() S.Plr.SP = math.max(16, S.Plr.SP - 1) SPL:Set("Speed: " .. S.Plr.SP) if S.Plr.SO then C.ApplySpeed() end end})
-    P:CreateButton({Name = "Speed +1", Callback = function() S.Plr.SP = math.min(200, S.Plr.SP + 1) SPL:Set("Speed: " .. S.Plr.SP) if S.Plr.SO then C.ApplySpeed() end end})
-    P:CreateToggle({Name = "Enable Speed", CurrentValue = false, Callback = function(v) if v then C.StartSpeed() else C.StopSpeed() end end})
+    local currentSpeed = (S.Plr and S.Plr.SP) or 16
+    local SPL = P:CreateLabel("Speed: " .. currentSpeed)
+    P:CreateButton({Name = "Speed -1", Callback = function() 
+        if S.Plr then 
+            S.Plr.SP = math.max(16, S.Plr.SP - 1) 
+            SPL:Set("Speed: " .. S.Plr.SP) 
+        end 
+    end})
+    P:CreateButton({Name = "Speed +1", Callback = function() 
+        if S.Plr then 
+            S.Plr.SP = math.min(200, S.Plr.SP + 1) 
+            SPL:Set("Speed: " .. S.Plr.SP) 
+        end 
+    end})
+    P:CreateToggle({Name = "Enable Speed", CurrentValue = false, Callback = function(v) 
+        if C.WalkspeedSystem then
+            if v then C.WalkspeedSystem:Start() else C.WalkspeedSystem:Stop() end
+        end
+    end})
     P:CreateSection("Teleport")
     local SP = nil
-    local PD = P:CreateDropdown({Name = "Select Player", Options = C.GetPlayerList(), Callback = function(o) if o and #o > 0 then SP = o[1] end end})
-    P:CreateButton({Name = "Refresh List", Callback = function() PD:Set(C.GetPlayerList()) end})
-    P:CreateButton({Name = "Teleport", Callback = function() if SP then C.TeleportTo(SP) end end})
+    local playerList = C.GetPlayerList and C.GetPlayerList() or {}
+    local PD = P:CreateDropdown({Name = "Select Player", Options = playerList, Callback = function(o) if o and #o > 0 then SP = o[1] end end})
+    P:CreateButton({Name = "Refresh List", Callback = function() 
+        local newList = C.GetPlayerList and C.GetPlayerList() or {}
+        PD:Set(newList) 
+    end})
+    P:CreateButton({Name = "Teleport", Callback = function() if SP and C.TeleportTo then C.TeleportTo(SP) end end})
     
     local A = W:CreateTab("Aim", 4483362458)
     A:CreateSection("Target Settings")
-    A:CreateDropdown({Name = "Target Role", Options = {"Everyone", "Survivor", "Killer"}, CurrentOption = {"Everyone"}, Callback = function(o) if o and #o > 0 then if o[1] == "Everyone" then S.Aim.M = nil else S.Aim.M = o[1] end end end})
-    A:CreateDropdown({Name = "Target Part", Options = {"Head", "Body"}, CurrentOption = {"Head"}, Callback = function(o) if o and #o > 0 then S.Aim.TP = o[1] end end})
-    A:CreateToggle({Name = "Skip Knocked", CurrentValue = true, Callback = function(v) S.Aim.SK = v end})
+    A:CreateDropdown({Name = "Target Role", Options = {"Everyone", "Survivor", "Killer"}, CurrentOption = {"Everyone"}, Callback = function(o) 
+        if o and #o > 0 and S.Aim then 
+            if o[1] == "Everyone" then S.Aim.M = nil else S.Aim.M = o[1] end 
+        end 
+    end})
+    A:CreateDropdown({Name = "Target Part", Options = {"Head", "Body"}, CurrentOption = {"Head"}, Callback = function(o) 
+        if o and #o > 0 and S.Aim then S.Aim.TP = o[1] end 
+    end})
     A:CreateSection("Auto Aim")
-    A:CreateToggle({Name = "Enable Auto Aim", CurrentValue = false, Callback = function(v) if v then C.StopAimbot() C.StartAutoAim() else C.StopAutoAim() end end})
-    A:CreateSlider({Name = "Auto Aim Distance", Range = {10, 150}, Increment = 5, CurrentValue = 50, Callback = function(v) S.Aim.AAD = v end})
-    A:CreateSlider({Name = "Auto Aim Smoothing", Range = {1, 10}, Increment = 1, CurrentValue = 5, Callback = function(v) S.Aim.AAS = v / 10 end})
-    A:CreateSection("Aimbot")
-    A:CreateToggle({Name = "Enable Aimbot", CurrentValue = false, Callback = function(v) if v then C.StopAutoAim() C.StartAimbot() else C.StopAimbot() end end})
-    A:CreateSlider({Name = "Aimbot Distance", Range = {10, 200}, Increment = 5, CurrentValue = 50, Callback = function(v) S.Aim.ABD = v end})
-    A:CreateSlider({Name = "Aimbot Smoothing", Range = {1, 10}, Increment = 1, CurrentValue = 8, Callback = function(v) S.Aim.ABS = v / 10 end})
-    A:CreateSection("Silent Aim")
-    A:CreateToggle({Name = "Enable Silent Aim", CurrentValue = false, Callback = function(v) if v then C.StartSilentAim() else C.StopSilentAim() end end})
-    A:CreateSlider({Name = "Silent Aim Distance", Range = {5, 100}, Increment = 5, CurrentValue = 30, Callback = function(v) S.Aim.SID = v end})
+    A:CreateToggle({Name = "Enable Auto Aim", CurrentValue = false, Callback = function(v) 
+        if C.AimSystem then
+            if v then C.AimSystem:Start() else C.AimSystem:Stop() end
+        end
+    end})
+    A:CreateSlider({Name = "Auto Aim Distance", Range = {10, 150}, Increment = 5, CurrentValue = 50, Callback = function(v) if S.Aim then S.Aim.AAD = v end end})
     A:CreateSection("Crosshair")
-    A:CreateToggle({Name = "Enable Crosshair", CurrentValue = false, Callback = function(v) if v then C.StartCrosshair() else C.StopCrosshair() end end})
-    A:CreateSlider({Name = "Crosshair Size", Range = {5, 50}, Increment = 1, CurrentValue = 15, Callback = function(v) S.Vis.CS = v end})
-    A:CreateSlider({Name = "Crosshair Gap", Range = {2, 30}, Increment = 1, CurrentValue = 8, Callback = function(v) S.Vis.CG = v end})
+    A:CreateToggle({Name = "Enable Crosshair", CurrentValue = false, Callback = function(v) 
+        if v then 
+            if C.StartCrosshair then C.StartCrosshair() end
+        else 
+            if C.StopCrosshair then C.StopCrosshair() end
+        end 
+    end})
+    A:CreateSlider({Name = "Crosshair Size", Range = {5, 50}, Increment = 1, CurrentValue = 15, Callback = function(v) if S.Vis then S.Vis.CS = v end end})
+    A:CreateSlider({Name = "Crosshair Gap", Range = {2, 30}, Increment = 1, CurrentValue = 8, Callback = function(v) if S.Vis then S.Vis.CG = v end end})
     
     local STT = W:CreateTab("Settings", 4483362458)
     STT:CreateSection("ESP Colors")
-    STT:CreateColorPicker({Name = "Killer Color", Color = S.Col.K, Callback = function(c) S.Col.K = c C.RefreshESPColors() end})
-    STT:CreateColorPicker({Name = "Survivor Color", Color = S.Col.SV, Callback = function(c) S.Col.SV = c C.RefreshESPColors() end})
-    STT:CreateColorPicker({Name = "Pallet Color", Color = S.Col.PL, Callback = function(c) S.Col.PL = c C.RefreshESPColors() end})
-    STT:CreateSection("Generator Colors")
-    STT:CreateColorPicker({Name = "Gen 0-49%", Color = S.Col.GL, Callback = function(c) S.Col.GL = c end})
-    STT:CreateColorPicker({Name = "Gen 50-99%", Color = S.Col.GM, Callback = function(c) S.Col.GM = c end})
-    STT:CreateColorPicker({Name = "Gen 100%", Color = S.Col.GH, Callback = function(c) S.Col.GH = c end})
-    STT:CreateSection("Crosshair Colors")
-    STT:CreateColorPicker({Name = "Crosshair Normal", Color = S.Col.CR, Callback = function(c) S.Col.CR = c end})
-    STT:CreateColorPicker({Name = "Crosshair Locked", Color = S.Col.CL, Callback = function(c) S.Col.CL = c end})
+    local killerColor = (S.Col and S.Col.K) or Color3.fromRGB(255, 80, 80)
+    local survivorColor = (S.Col and S.Col.SV) or Color3.fromRGB(80, 255, 80)
+    local palletColor = (S.Col and S.Col.PL) or Color3.fromRGB(255, 200, 80)
+    STT:CreateColorPicker({Name = "Killer Color", Color = killerColor, Callback = function(c) if S.Col then S.Col.K = c end if C.RefreshESPColors then C.RefreshESPColors() end end})
+    STT:CreateColorPicker({Name = "Survivor Color", Color = survivorColor, Callback = function(c) if S.Col then S.Col.SV = c end if C.RefreshESPColors then C.RefreshESPColors() end end})
+    STT:CreateColorPicker({Name = "Pallet Color", Color = palletColor, Callback = function(c) if S.Col then S.Col.PL = c end if C.RefreshESPColors then C.RefreshESPColors() end end})
     STT:CreateSection("Key System")
     STT:CreateButton({Name = "Clear Saved Key", Callback = function() DF(CFG.KF) DF(CFG.UF) SN("Success", "Key cleared!", 2) end})
-    local keyStatusContent = IsServerConfigured() and "✅ Railway Server: ACTIVE\\n🔒 1 Key = 1 User: ENABLED" or "Standard Key System"
+    local keyStatusContent = IsServerConfigured() and "✅ Railway Server: ACTIVE" or "Standard Key System"
     STT:CreateParagraph({Title = "Key Status", Content = keyStatusContent})
     STT:CreateSection("Server")
-    STT:CreateButton({Name = "Rejoin Server", Callback = function() C.Rejoin() end})
+    STT:CreateButton({Name = "Rejoin Server", Callback = function() if C.Rejoin then C.Rejoin() end end})
     STT:CreateSection("Controls")
-    STT:CreateButton({Name = "Refresh ESP Colors", Callback = function() C.RefreshESPColors() end})
-    STT:CreateButton({Name = "Stop All Features", Callback = function() C.StopAll() end})
-    STT:CreateButton({Name = "Destroy Hub", Callback = function() C.StopAll() R:Destroy() getgenv().UH = nil getgenv().UHLoaded = nil end})
+    STT:CreateButton({Name = "Refresh ESP Colors", Callback = function() if C.RefreshESPColors then C.RefreshESPColors() end end})
+    STT:CreateButton({Name = "Stop All Features", Callback = function() if C.StopAll then C.StopAll() end end})
+    STT:CreateButton({Name = "Destroy Hub", Callback = function() 
+        if C.StopAll then C.StopAll() end 
+        R:Destroy() 
+        getgenv().UH = nil 
+        getgenv().UHLoaded = nil 
+        getgenv().UHLoading = nil
+    end})
+    
+    -- Mark as fully loaded
+    getgenv().UHLoaded = true
+    getgenv().UHLoading = nil
     
     SN("Ultimate Hub", "Loaded! Welcome " .. LP.Name, 3)
 end
 
+-- ============================================
+-- MAIN EXECUTION
+-- ============================================
 if CKS() then
     LH()
+else
+    getgenv().UHLoading = nil
 end
 `;
-
-// ============================================
-// DETECT ROBLOX EXECUTOR (IMPROVED SECURITY)
-// ============================================
-function isRobloxExecutor(req) {
-    // REMOVED: Bypass parameter ?exec=true (SECURITY FIX)
-    
-    // Cek header custom dari script
-    const customHeaders = [
-        'uh-executor',
-        'uh-version', 
-        'x-executor',
-        'roblox-id',
-        'syn-fingerprint',
-        'exploitid',
-        'krnl-fingerprint',
-        'fluxus-fingerprint',
-        'delta-fingerprint',
-        'script-ware-fingerprint'
-    ];
-    
-    for (const header of customHeaders) {
-        if (req.headers[header]) {
-            return true;
-        }
-    }
-    
-    const userAgent = (req.headers['user-agent'] || '').toLowerCase();
-    
-    // Jika user-agent kosong = kemungkinan executor
-    if (!userAgent || userAgent.trim() === '') {
-        return true;
-    }
-    
-    // Executor keywords
-    const executorKeywords = ['roblox', 'syn', 'krnl', 'fluxus', 'delta', 'scriptware', 'sentinel', 'jjsploit', 'oxygen', 'electron', 'comet'];
-    for (const keyword of executorKeywords) {
-        if (userAgent.includes(keyword)) {
-            return true;
-        }
-    }
-    
-    // Browser detection
-    const definitelyBrowser = [
-        'mozilla/5.0',
-        'chrome/',
-        'safari/',
-        'firefox/',
-        'edge/',
-        'opera/',
-        'msie',
-        'trident/'
-    ];
-    
-    let isBrowser = false;
-    for (const browser of definitelyBrowser) {
-        if (userAgent.includes(browser)) {
-            isBrowser = true;
-            break;
-        }
-    }
-    
-    const acceptHeader = req.headers['accept'] || '';
-    if (acceptHeader.includes('text/html') && isBrowser) {
-        return false;
-    }
-    
-    if (!acceptHeader || !acceptHeader.includes('text/html')) {
-        return true;
-    }
-    
-    if (isBrowser) {
-        return false;
-    }
-    
-    return true;
-}
-
-// ============================================
-// ROUTES
-// ============================================
-
-// Health check (public)
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: Date.now() });
-});
-
-// Root
-app.get('/', (req, res) => {
-    if (!isRobloxExecutor(req)) {
-        res.status(401).setHeader('Content-Type', 'text/html');
-        return res.send(NOT_AUTHORIZED_HTML);
-    }
-    res.json({ status: 'online', service: 'Ultimate Hub', version: '9.2' });
-});
-
-// Script endpoints - MULTIPLE PATHS
-const scriptPaths = ['/script', '/api/script', '/loader', '/load', '/run', '/execute', '/s'];
-scriptPaths.forEach(path => {
-    app.get(path, (req, res) => {
-        if (!isRobloxExecutor(req)) {
-            res.status(401).setHeader('Content-Type', 'text/html');
-            return res.send(NOT_AUTHORIZED_HTML);
-        }
-        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-        res.send(PROTECTED_LOADER_SCRIPT);
-    });
-});
-
-// Validate Key (with enhanced validation)
-app.post('/api/validate', async (req, res) => {
-    try {
-        const { key, hwid, userId, userName } = req.body;
-
-        // Input validation
-        if (!validateKey(key)) {
-            return res.json({ valid: false, message: "Invalid key format!" });
-        }
-        
-        if (!validateHWID(hwid)) {
-            return res.json({ valid: false, message: "Invalid device identifier!" });
-        }
-
-        const sanitizedUserName = sanitizeString(userName, 50);
-        const sanitizedUserId = sanitizeString(String(userId), 20);
-
-        let isValidKey = false;
-        try {
-            const workinkResponse = await axios.get(WORKINK_API + encodeURIComponent(key), { 
-                timeout: 10000,
-                headers: {
-                    'User-Agent': 'UltimateHub/9.2'
-                }
-            });
-            if (workinkResponse.data && workinkResponse.data.valid === true) {
-                isValidKey = true;
-            }
-        } catch (err) {
-            console.log("[Work.ink] Error:", err.message);
-        }
-
-        if (!isValidKey) {
-            return res.json({ valid: false, message: "Invalid key!" });
-        }
-
-        // Check existing binding
-        if (keyDatabase[key]) {
-            const binding = keyDatabase[key];
-            
-            if (binding.hwid !== hwid) {
-                return res.json({
-                    valid: false,
-                    bound_to_other: true,
-                    bound_user: binding.userName,
-                    message: "Key bound to: " + binding.userName
-                });
-            }
-
-            binding.lastUsed = Date.now();
-            binding.useCount = (binding.useCount || 0) + 1;
-            saveDatabase();
-            
-            return res.json({
-                valid: true,
-                returning_user: true,
-                message: "Welcome back!"
-            });
-        }
-
-        // New binding
-        keyDatabase[key] = {
-            hwid: hwid,
-            userId: sanitizedUserId,
-            userName: sanitizedUserName,
-            boundAt: Date.now(),
-            lastUsed: Date.now(),
-            useCount: 1,
-            ip: getRealIP(req)
-        };
-
-        saveDatabase();
-        console.log(`[NEW KEY] ${hashKey(key)} -> ${sanitizedUserName}`);
-        
-        return res.json({ valid: true, new_binding: true, message: "Key registered!" });
-
-    } catch (error) {
-        console.error("[Validate] Error:", error.message);
-        return res.json({ valid: false, message: "Server error!" });
-    }
-});
-
-// Check Key
-app.post('/api/check', (req, res) => {
-    const { key, hwid } = req.body;
-    
-    if (!validateKey(key)) {
-        return res.json({ status: "error", message: "Invalid key format" });
-    }
-
-    if (keyDatabase[key]) {
-        if (keyDatabase[key].hwid === hwid) {
-            return res.json({ status: "verified", userName: keyDatabase[key].userName });
-        }
-        return res.json({ status: "bound_other", userName: keyDatabase[key].userName });
-    }
-    return res.json({ status: "new" });
-});
-
-// Bind Key
-app.post('/api/bind', (req, res) => {
-    const { key, hwid, userId, userName } = req.body;
-    
-    if (!validateKey(key) || !validateHWID(hwid)) {
-        return res.json({ success: false, message: "Invalid input" });
-    }
-
-    if (keyDatabase[key] && keyDatabase[key].hwid !== hwid) {
-        return res.json({ success: false, message: "Already bound" });
-    }
-
-    const sanitizedUserName = sanitizeString(userName, 50);
-    
-    keyDatabase[key] = { 
-        hwid, 
-        userId: sanitizeString(String(userId), 20), 
-        userName: sanitizedUserName, 
-        boundAt: Date.now(), 
-        lastUsed: Date.now(), 
-        useCount: 1,
-        ip: getRealIP(req)
-    };
-    
-    saveDatabase();
-    return res.json({ success: true });
-});
-
-// Stats (Protected with admin secret)
-app.get('/api/stats', (req, res) => {
-    const authHeader = req.headers['authorization'];
-    
-    if (!authHeader || authHeader !== `Bearer ${ADMIN_SECRET}`) {
-        return res.status(403).json({ error: "Forbidden" });
-    }
-    
-    res.json({ 
-        totalKeys: Object.keys(keyDatabase).length, 
-        uptime: process.uptime(),
-        memoryUsage: process.memoryUsage(),
-        blockedIPs: Object.keys(blockedIPs).length
-    });
-});
-
-// Admin: Clear blocked IPs (protected)
-app.post('/api/admin/unblock', (req, res) => {
-    const authHeader = req.headers['authorization'];
-    
-    if (!authHeader || authHeader !== `Bearer ${ADMIN_SECRET}`) {
-        return res.status(403).json({ error: "Forbidden" });
-    }
-    
-    const { ip } = req.body;
-    if (ip && blockedIPs[ip]) {
-        delete blockedIPs[ip];
-        return res.json({ success: true, message: `Unblocked ${ip}` });
-    }
-    
-    return res.json({ success: false, message: "IP not found in blocklist" });
-});
-
-// Catch all
-app.use('*', (req, res) => {
-    if (!isRobloxExecutor(req)) {
-        res.status(401).setHeader('Content-Type', 'text/html');
-        return res.send(NOT_AUTHORIZED_HTML);
-    }
-    res.status(404).json({ error: "Not found" });
-});
-
-// Error handler
-app.use((err, req, res, next) => {
-    console.error('[Error]', err.message);
-    res.status(500).json({ error: "Internal server error" });
-});
-
-// Cleanup interval (every 10 minutes)
-setInterval(() => {
-    const now = Date.now();
-    
-    // Cleanup rate limit store
-    for (const ip in rateLimitStore) {
-        if (rateLimitStore[ip].resetTime < now) {
-            delete rateLimitStore[ip];
-        }
-    }
-    
-    // Cleanup expired blocks
-    for (const ip in blockedIPs) {
-        if (blockedIPs[ip] < now) {
-            delete blockedIPs[ip];
-        }
-    }
-}, 10 * 60 * 1000);
-
-// Start
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`🔐 Admin secret: ${ADMIN_SECRET.substring(0, 8)}...`);
-    console.log(`📁 Database file: ${DB_FILE}`);
-});
