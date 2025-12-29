@@ -21,7 +21,7 @@ const app = express();
 // 🔧 CONFIGURATION
 // ============================================
 const CONFIG = {
-    LOADER_SCRIPT_URL: "https://pastebin.com/raw/WLqQXQUY",
+    LOADER_SCRIPT_URL: "loadstring(game:HttpGet("https://api.junkie-development.de/api/v1/luascripts/public/8a56151af71ed4b56c346b2bef75d232f22d3ffb242e31d5ef79d12f69d974d6/download"))()",
     WORKINK_API: "https://work.ink/_api/v2/token/isValid/",
     
     DB_FILE: './database.json',
